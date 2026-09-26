@@ -1,0 +1,30 @@
+# Environment variables and local credentials
+.env
+.env.*
+!.env.example
+opencode.json
+
+# Local Python environments
+.venv/
+**/.venv/
+
+# Installed dependencies and generated frontend build
+node_modules/
+**/node_modules/
+frontend/dist/
+
+# Local SQLite databases and journal files
+*.db
+*.db-*
+*.sqlite
+*.sqlite-*
+*.sqlite3
+*.sqlite3-*
+
+# Graphify generated output, reports, and caches
+graphify-out/
+
+# Operating system and npm-generated files
+.DS_Store
+Thumbs.db
+npm-debug.log*
