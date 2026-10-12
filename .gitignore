@@ -10,7 +10,10 @@ opencode.json
 
 # Installed dependencies and generated frontend build
 node_modules/
-**/node_modules/
+frontend/node_modules/
+backend/node_modules/
+frontend/dist/
+backend/dist/
 
 # Local SQLite databases and journal files
 *.db
