@@ -1,97 +1,23 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
 import strawberryPhoto from '../../assets/img/819524151_18102754568288729_4846377332151617293_n.jpg';
 import browniePhoto from '../../assets/img/819236802_18102869321288729_8184103506698788233_n.jpg';
 import './styles.css';
+import './admin.css';
 
 const whatsappNumber = '5547984572173';
 const instagramUrl = 'https://www.instagram.com/p/Ddo6dcLFd_c/?img_index=1';
-
-const products = [
-  {
-    id: 1,
-    name: 'Morango do Amor Clássico',
-    description: 'Morango fresquinho, chocolate ao leite e aquele crocante irresistível.',
-    price: 5,
-    category: 'Morangos do Amor',
-    image: strawberryPhoto,
-    tag: 'Queridinho',
-    emoji: '🍓',
-  },
-  {
-    id: 2,
-    name: 'Morango do Amor Branco',
-    description: 'Cobertura de chocolate branco para deixar tudo ainda mais especial.',
-    price: 6,
-    category: 'Morangos do Amor',
-    image: strawberryPhoto,
-    tag: 'Delicado',
-    emoji: '🍓',
-  },
-  {
-    id: 3,
-    name: 'Morango do Amor Diet',
-    description: 'Uma versão leve com chocolate diet e pedacinhos de castanha.',
-    price: 7,
-    category: 'Morangos do Amor',
-    emoji: '🍓',
-  },
-  {
-    id: 4,
-    name: 'Brownie Tradicional',
-    description: 'Chocolate meio amargo, casquinha por fora e maciez por dentro.',
-    price: 8,
-    category: 'Brownies',
-    image: browniePhoto,
-    tag: 'Feito à mão',
-    emoji: '🍫',
-  },
-  {
-    id: 5,
-    name: 'Brownie de Doce de Leite',
-    description: 'Brownie intenso com um recheio cremoso de doce de leite.',
-    price: 9,
-    category: 'Brownies',
-    image: browniePhoto,
-    emoji: '🍫',
-  },
-  {
-    id: 6,
-    name: 'Brownie de Nutella',
-    description: 'Muito chocolate e um recheio generoso para adoçar seu dia.',
-    price: 10,
-    category: 'Brownies',
-    image: browniePhoto,
-    tag: 'Mais chocolatudo',
-    emoji: '🍫',
-  },
-  {
-    id: 7,
-    name: 'Brigadeiro Gourmet',
-    description: 'Brigadeiro macio de chocolate com granulado especial.',
-    price: 4,
-    category: 'Doces Variados',
-    emoji: '🍬',
-  },
-  {
-    id: 8,
-    name: 'Beijinho de Coco',
-    description: 'Coco fresquinho, sabor de festa e um toque de carinho.',
-    price: 3.5,
-    category: 'Doces Variados',
-    emoji: '🥥',
-  },
-  {
-    id: 9,
-    name: 'Cajuzinho',
-    description: 'Amendoim e chocolate na combinação que todo mundo ama.',
-    price: 3.5,
-    category: 'Doces Variados',
-    emoji: '🥜',
-  },
+window.demoProducts = [
+  { id: 1, name: 'Morango do Amor Clássico', description: 'Morango fresquinho, chocolate ao leite e aquele crocante irresistível.', price: 5, category: 'Morangos do Amor', image: strawberryPhoto, tag: 'Queridinho', emoji: '🍓' },
+  { id: 2, name: 'Morango do Amor Branco', description: 'Cobertura de chocolate branco para deixar tudo ainda mais especial.', price: 6, category: 'Morangos do Amor', image: strawberryPhoto, tag: 'Delicado', emoji: '🍓' },
+  { id: 3, name: 'Morango do Amor Diet', description: 'Uma versão leve com chocolate diet e pedacinhos de castanha.', price: 7, category: 'Morangos do Amor', emoji: '🍓' },
+  { id: 4, name: 'Brownie Tradicional', description: 'Chocolate meio amargo, casquinha por fora e maciez por dentro.', price: 8, category: 'Brownies', image: browniePhoto, tag: 'Feito à mão', emoji: '🍫' },
+  { id: 5, name: 'Brownie de Doce de Leite', description: 'Brownie intenso com um recheio cremoso de doce de leite.', price: 9, category: 'Brownies', image: browniePhoto, emoji: '🍫' },
+  { id: 6, name: 'Brownie de Nutella', description: 'Muito chocolate e um recheio generoso para adoçar seu dia.', price: 10, category: 'Brownies', image: browniePhoto, tag: 'Mais chocolatudo', emoji: '🍫' },
+  { id: 7, name: 'Brigadeiro Gourmet', description: 'Brigadeiro macio de chocolate com granulado especial.', price: 4, category: 'Doces Variados', emoji: '🍬' },
+  { id: 8, name: 'Beijinho de Coco', description: 'Coco fresquinho, sabor de festa e um toque de carinho.', price: 3.5, category: 'Doces Variados', emoji: '🥥' },
+  { id: 9, name: 'Cajuzinho', description: 'Amendoim e chocolate na combinação que todo mundo ama.', price: 3.5, category: 'Doces Variados', emoji: '🥜' },
 ];
-
-const categories = ['Todos', 'Morangos do Amor', 'Brownies', 'Doces Variados'];
 
 function formatPrice(price) {
   return price.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -161,23 +87,8 @@ function App() {
   const [cart, setCart] = useState({});
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [orderSent, setOrderSent] = useState(false);
-
-  const visibleProducts = useMemo(
-    () =>
-      activeCategory === 'Todos'
-        ? products
-        : products.filter((product) => product.category === activeCategory),
-    [activeCategory],
-  );
-
-  const cartItems = products
-    .filter((product) => cart[product.id])
-    .map((product) => ({ ...product, quantity: cart[product.id] }));
-  const cartCount = cartItems.reduce((total, item) => total + item.quantity, 0);
-  const cartTotal = cartItems.reduce(
-    (total, item) => total + item.price * item.quantity,
-    0,
-  );
+  const [showAdminLogin, setShowAdminLogin] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   function changeQuantity(productId, amount) {
     setCart((currentCart) => {
@@ -193,20 +104,59 @@ function App() {
     setOrderSent(false);
   }
 
+  function handleAdminClick() {
+    const isConfirmed = confirm('Deseja entrar no painel administrativo? Use:\nUsuário: admin\nSenha: admin123');
+    if (isConfirmed) {
+      setIsAdmin(true);
+      setShowAdminLogin(false);
+    }
+  }
+
+  function closeModal() {
+    setIsCartOpen(false);
+  }
+
+  function modal() {
+    const message = 'Carrinho vazio - adicione produtos';
+    window.open(
+      `https://wa.me/${whatsappNumber}?text=${encodeURIComponent(message)}`,
+      '_blank',
+      'noopener,noreferrer',
+    );
+    setOrderSent(true);
+  }
+
+  const cartItems = Object.keys(cart).map(productId => {
+    const product = window.demoProducts.find(p => p.id === parseInt(productId));
+    return product && cart[productId] ? { ...product, quantity: cart[productId] } : null;
+  }).filter(Boolean);
+
+  const cartTotal = cartItems.reduce(
+    (total, item) => total + item.price * item.quantity,
+    0,
+  );
+
   function checkout() {
+    if (cartTotal === 0) {
+      alert('Seu carrinho está vazio. Adicione produtos para fazer um pedido.');
+      return;
+    }
+
     const orderLines = cartItems
       .map(
         (item) =>
           `• ${item.quantity}x ${item.name} — ${formatPrice(item.price * item.quantity)}`,
       )
       .join('\n');
+
     const message = [
-      'Oi! Quero fazer um pedido na Doce Maná 🍓',
+      'Oi! Gostaria de fazer um pedido na Doce Maná 🍓',
       '',
       orderLines,
       '',
       `Total: ${formatPrice(cartTotal)}`,
     ].join('\n');
+
     window.open(
       `https://wa.me/${whatsappNumber}?text=${encodeURIComponent(message)}`,
       '_blank',
@@ -233,17 +183,27 @@ function App() {
         <nav className="desktop-nav" aria-label="Navegação principal">
           <a href="#inicio">Início</a>
           <a href="#cardapio">Nosso cardápio</a>
+          {isAdmin && (
+            <a href="#admin" onClick={(e) => { e.preventDefault(); setShowAdminLogin(true); }}>
+              Painel Admin
+            </a>
+          )}
+          {isAdmin && (
+            <a href="#admin" onClick={(e) => { e.preventDefault(); handleAdminClick(); }}>
+              Admin
+            </a>
+          )}
           <a href="#sobre">Nossa história</a>
         </nav>
         <button
           className="cart-button"
           type="button"
           onClick={() => setIsCartOpen(true)}
-          aria-label={`Abrir sacola, ${cartCount} itens`}
+          aria-label={`Abrir sacola, ${Object.keys(cart).length} itens`}
         >
           <Icon name="bag" />
           <span className="cart-button-label">Minha sacola</span>
-          <span className="cart-count">{cartCount}</span>
+          <span className="cart-count">{Object.keys(cart).length}</span>
         </button>
       </header>
 
@@ -297,25 +257,56 @@ function App() {
             </div>
             <p>Um pedacinho de felicidade<br />sempre cai bem.</p>
           </div>
-          <div className="category-list" role="tablist" aria-label="Filtrar por categoria">
-            {categories.map((category) => (
+
+          <section aria-label="Filtrar por categoria">
+            <div className="category-list" role="tablist">
               <button
-                key={category}
+                key="Todos"
                 type="button"
                 role="tab"
-                aria-selected={activeCategory === category}
-                className={activeCategory === category ? 'category-chip active' : 'category-chip'}
-                onClick={() => setActiveCategory(category)}
+                aria-selected={activeCategory === 'Todos'}
+                className={`category-chip ${activeCategory === 'Todos' ? 'active' : ''}`}
+                onClick={() => setActiveCategory('Todos')}
               >
-                {category}
+                Todos
               </button>
-            ))}
-          </div>
+              <button
+                key="Morangos do Amor"
+                type="button"
+                role="tab"
+                aria-selected={activeCategory === 'Morangos do Amor'}
+                className={`category-chip ${activeCategory === 'Morangos do Amor' ? 'active' : ''}`}
+                onClick={() => setActiveCategory('Morangos do Amor')}
+              >
+                Morangos do Amor
+              </button>
+              <button
+                key="Brownies"
+                type="button"
+                role="tab"
+                aria-selected={activeCategory === 'Brownies'}
+                className={`category-chip ${activeCategory === 'Brownies' ? 'active' : ''}`}
+                onClick={() => setActiveCategory('Brownies')}
+              >
+                Brownies
+              </button>
+              <button
+                key="Doces Variados"
+                type="button"
+                role="tab"
+                aria-selected={activeCategory === 'Doces Variados'}
+                className={`category-chip ${activeCategory === 'Doces Variados' ? 'active' : ''}`}
+                onClick={() => setActiveCategory('Doces Variados')}
+              >
+                Doces Variados
+              </button>
+            </div>
+          </section>
 
-          <div className="product-grid">
-            {visibleProducts.map((product, index) => (
+          <section className="product-grid">
+            {window.demoProducts.map((product, index) => (
               <article className="product-card" key={product.id}>
-                <div className={`product-image image-tone-${index % 4}`}>
+                <div className={`product-image product-tone-${index % 4}`}>
                   {product.image ? (
                     <img src={product.image} alt={product.name} loading="lazy" />
                   ) : (
@@ -324,10 +315,9 @@ function App() {
                       <i>{product.category === 'Brownies' ? '✳' : '♡'}</i>
                     </div>
                   )}
-                  {product.tag && <span className="product-tag">{product.tag}</span>}
                   <button
                     type="button"
-                    className={cart[product.id] ? 'quick-add added' : 'quick-add'}
+                    className={`quick-add ${cart[product.id] ? 'added' : ''}`}
                     onClick={() => changeQuantity(product.id, 1)}
                     aria-label={`Adicionar ${product.name} à sacola`}
                   >
@@ -352,7 +342,7 @@ function App() {
                 </div>
               </article>
             ))}
-          </div>
+          </section>
           <p className="menu-note">Todos os nossos docinhos são preparados fresquinhos, sob encomenda. ♡</p>
         </section>
 
@@ -383,19 +373,19 @@ function App() {
         <a href={instagramUrl} target="_blank" rel="noreferrer">Instagram <Icon name="arrow" size={15} /></a>
       </footer>
 
-      {cartCount > 0 && (
+      {Object.keys(cart).length > 0 && (
         <button
           type="button"
           className="mobile-cart-bar"
           onClick={() => setIsCartOpen(true)}
         >
-          <span><Icon name="bag" size={19} /> Minha sacola · {cartCount} {cartCount === 1 ? 'item' : 'itens'}</span>
+          <span><Icon name="bag" size={19} /> Minha sacola · {Object.keys(cart).length} {Object.keys(cart).length === 1 ? 'item' : 'itens'}</span>
           <strong>{formatPrice(cartTotal)}</strong>
         </button>
       )}
 
       {isCartOpen && (
-        <div className="cart-backdrop" onClick={() => setIsCartOpen(false)}>
+        <div className="cart-backdrop" onClick={closeModal}>
           <aside
             className="cart-drawer"
             aria-label="Sua sacola"
@@ -406,25 +396,37 @@ function App() {
               <button
                 className="icon-button"
                 type="button"
-                onClick={() => setIsCartOpen(false)}
+                onClick={closeModal}
                 aria-label="Fechar sacola"
               >
                 <Icon name="close" />
               </button>
             </div>
-            {cartItems.length ? (
+
+            {Object.keys(cart).length === 0 ? (
+              <div className="empty-cart">
+                <span>🍓</span>
+                <h3>Sua sacola está esperando</h3>
+                <p>Escolha um docinho para deixar o dia mais gostoso.</p>
+                <button type="button" className="button button-primary" onClick={closeModal}>Ver cardápio</button>
+              </div>
+            ) : (
               <>
                 <div className="cart-items">
-                  {cartItems.map((item) => (
+                  {cartItems.map(item => (
                     <div className="cart-item" key={item.id}>
-                      <div className="cart-item-emoji">{item.emoji}</div>
+                      <div className="cart-item-emoji">{item.emoji || '💝'}</div>
                       <div className="cart-item-info">
                         <strong>{item.name}</strong>
                         <span>{formatPrice(item.price)} cada</span>
                         <div className="quantity-control">
-                          <button type="button" onClick={() => changeQuantity(item.id, -1)} aria-label={`Remover uma unidade de ${item.name}`}><Icon name="minus" size={15} /></button>
+                          <button type="button" onClick={() => changeQuantity(item.id, -1)} aria-label={`Remover uma unidade de ${item.name}`}>
+                            <Icon name="minus" size={15} />
+                          </button>
                           <span>{item.quantity}</span>
-                          <button type="button" onClick={() => changeQuantity(item.id, 1)} aria-label={`Adicionar uma unidade de ${item.name}`}><Icon name="plus" size={15} /></button>
+                          <button type="button" onClick={() => changeQuantity(item.id, 1)} aria-label={`Adicionar uma unidade de ${item.name}`}>
+                            <Icon name="plus" size={15} />
+                          </button>
                         </div>
                       </div>
                       <strong className="cart-item-total">{formatPrice(item.price * item.quantity)}</strong>
@@ -440,18 +442,110 @@ function App() {
                   {orderSent && <p className="order-note" role="status">Seu pedido foi preparado para enviar. Se a nova aba não abriu, confira o bloqueador de pop-ups.</p>}
                 </div>
               </>
-            ) : (
-              <div className="empty-cart">
-                <span>🍓</span>
-                <h3>Sua sacola está esperando</h3>
-                <p>Escolha um docinho para deixar o dia mais gostoso.</p>
-                <button type="button" className="button button-primary" onClick={() => setIsCartOpen(false)}>Ver cardápio</button>
-              </div>
             )}
           </aside>
         </div>
       )}
+
+      {showAdminLogin && (
+        <AdminLoginView onClose={() => setShowAdminLogin(false)} onLogout={() => setIsAdmin(false)} />
+      )}
+
+      {isAdmin && (
+        <div className="admin-toolbar">
+          <button
+            className="admin-button"
+            onClick={() => { setIsAdmin(false); setIsAdmin(false); window.location.href = '/admin'; }}
+          >
+            Sair do modo admin
+          </button>
+        </div>
+      )}
     </>
+  );
+}
+
+function AdminLoginView({ onClose, onLogout }) {
+  const [isLoading, setIsLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setIsLoading(true);
+    setShowPassword(false);
+
+    const username = prompt('Digite seu usuário:');
+    const password = showPassword ? prompt('Sua senha é: ') : null;
+
+    if (!username || !password) {
+      setIsLoading(false);
+      return;
+    }
+
+    try {
+      const success = confirm('Login simulado!\n\nUsuário: admin\nSenha: admin123\n\nAuto-confirmar entrada?');
+
+      if (success) {
+        onClose();
+        onLogout();
+        setIsLoading(false);
+      }
+    } catch (error) {
+      setIsLoading(false);
+      alert('Erro ao fazer login');
+    }
+  };
+
+  return (
+    <div className="admin-login">
+      <div className="login-container">
+        <div className="login-header">
+          <h1>Admin - Doce Maná</h1>
+          <p>Acesse o painel administrativo</p>
+        </div>
+
+        <form onSubmit={handleSubmit} className="login-form">
+          <div className="form-group">
+            <label htmlFor="username">Usuário</label>
+            <input
+              type="text"
+              id="username"
+              name="username"
+              placeholder="Seu usuário"
+              required
+              disabled={isLoading}
+            />
+          </div>
+
+          <div className="form-group">
+            <label htmlFor="password">Senha</label>
+            <input
+              type="text"
+              id="password"
+              name="password"
+              value={showPassword ? prompt('Digite sua senha (sou admin)') : ''}
+              disabled={isLoading}
+            />
+          </div>
+
+          <button
+            type="submit"
+            className="button button-primary button-full"
+            disabled={isLoading}
+          >
+            {isLoading ? 'Entrando...' : 'Entrar'}
+          </button>
+        </form>
+
+        <div className="login-tips">
+          <h4>Dicas</h4>
+          <ul>
+            <li>Usuário: <strong>admin</strong></li>
+            <li>Senha: <strong>admin123</strong></li>
+          </ul>
+        </div>
+      </div>
+    </div>
   );
 }
 

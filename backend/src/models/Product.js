@@ -1,18 +1,36 @@
 const db = require('../config/database');
 
 class Product {
-  static getAll() {
+  static getAll(onlyActive = true) {
     return new Promise((resolve, reject) => {
-      db.all('SELECT * FROM products WHERE is_active = 1 ORDER BY category, name', [], (err, rows) => {
+      let query = 'SELECT * FROM products';
+      const params = [];
+
+      if (onlyActive) {
+        query += ' WHERE is_active = 1';
+      }
+
+      query += ' ORDER BY category, name';
+
+      db.all(query, params, (err, rows) => {
         if (err) reject(err);
         else resolve(rows);
       });
     });
   }
 
-  static getByCategory(category) {
+  static getByCategory(category, onlyActive = true) {
     return new Promise((resolve, reject) => {
-      db.all('SELECT * FROM products WHERE category = ? AND is_active = 1 ORDER BY name', [category], (err, rows) => {
+      let query = 'SELECT * FROM products WHERE category = ?';
+      const params = [category];
+
+      if (onlyActive) {
+        query += ' AND is_active = 1';
+      }
+
+      query += ' ORDER BY name';
+
+      db.all(query, params, (err, rows) => {
         if (err) reject(err);
         else resolve(rows);
       });
@@ -30,7 +48,7 @@ class Product {
 
   static getById(id) {
     return new Promise((resolve, reject) => {
-      db.get('SELECT * FROM products WHERE id = ? AND is_active = 1', [id], (err, row) => {
+      db.get('SELECT * FROM products WHERE id = ?', [id], (err, row) => {
         if (err) reject(err);
         else resolve(row);
       });
@@ -39,10 +57,10 @@ class Product {
 
   static create(product) {
     return new Promise((resolve, reject) => {
-      const { name, description, price, category, image_url } = product;
+      const { name, description, price, category, image_url, stock_quantity = 0 } = product;
       db.run(
-        'INSERT INTO products (name, description, price, category, image_url) VALUES (?, ?, ?, ?, ?)',
-        [name, description, price, category, image_url],
+        'INSERT INTO products (name, description, price, category, image_url, stock_quantity) VALUES (?, ?, ?, ?, ?, ?)',
+        [name, description, price, category, image_url, stock_quantity],
         function(err) {
           if (err) reject(err);
           else resolve({ id: this.lastID, ...product });
@@ -53,10 +71,28 @@ class Product {
 
   static update(id, product) {
     return new Promise((resolve, reject) => {
-      const { name, description, price, category, image_url, is_active } = product;
+      const allowedFields = ['name', 'description', 'price', 'category', 'image_url', 'stock_quantity', 'is_active'];
+      const updates = [];
+      const values = [];
+
+      Object.keys(product).forEach(key => {
+        if (allowedFields.includes(key)) {
+          updates.push(`${key} = ?`);
+          values.push(product[key]);
+        }
+      });
+
+      if (updates.length === 0) {
+        resolve({ changes: 0 });
+        return;
+      }
+
+      updates.push('updated_at = CURRENT_TIMESTAMP');
+      values.push(id);
+
       db.run(
-        'UPDATE products SET name = ?, description = ?, price = ?, category = ?, image_url = ?, is_active = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
-        [name, description, price, category, image_url, is_active ? 1 : 0, id],
+        `UPDATE products SET ${updates.join(', ')} WHERE id = ?`,
+        values,
         function(err) {
           if (err) reject(err);
           else resolve({ changes: this.changes });
@@ -71,6 +107,32 @@ class Product {
         if (err) reject(err);
         else resolve({ changes: this.changes });
       });
+    });
+  }
+
+  static decrementStock(id, quantity) {
+    return new Promise((resolve, reject) => {
+      db.run(
+        'UPDATE products SET stock_quantity = stock_quantity - ? WHERE id = ? AND stock_quantity >= ?',
+        [quantity, id, quantity],
+        function(err) {
+          if (err) reject(err);
+          else resolve({ success: this.changes > 0, changes: this.changes });
+        }
+      );
+    });
+  }
+
+  static incrementStock(id, quantity) {
+    return new Promise((resolve, reject) => {
+      db.run(
+        'UPDATE products SET stock_quantity = stock_quantity + ? WHERE id = ?',
+        [quantity, id],
+        function(err) {
+          if (err) reject(err);
+          else resolve({ changes: this.changes });
+        }
+      );
     });
   }
 }
