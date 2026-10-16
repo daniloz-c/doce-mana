@@ -1,56 +1,5 @@
-const Admin = require('../models/Admin');
 const Product = require('../models/Product');
 const Order = require('../models/Order');
-
-exports.login = async (req, res) => {
-  try {
-    const { username, password } = req.body;
-
-    if (!username || !password) {
-      return res.status(400).json({ success: false, message: 'Usuário e senha são obrigatórios' });
-    }
-
-    const admin = await Admin.findByUsername(username);
-    if (!admin) {
-      return res.status(401).json({ success: false, message: 'Credenciais inválidas' });
-    }
-
-    const isValid = await Admin.verifyPassword(admin, password);
-    if (!isValid) {
-      return res.status(401).json({ success: false, message: 'Credenciais inválidas' });
-    }
-
-    await new Promise((resolve, reject) => req.session.regenerate(error => error ? reject(error) : resolve()));
-    req.session.adminId = admin.id;
-    await new Promise((resolve, reject) => req.session.save(error => error ? reject(error) : resolve()));
-    res.json({ success: true, message: 'Login realizado com sucesso' });
-  } catch (error) {
-    console.error('Login error:', error);
-    res.status(500).json({ success: false, message: 'Erro ao fazer login' });
-  }
-};
-
-exports.logout = (req, res) => {
-  if (req.session) {
-    req.session.destroy((err) => {
-      if (err) {
-        return res.status(500).json({ success: false, message: 'Erro ao deslogar' });
-      }
-      res.clearCookie('connect.sid');
-      res.json({ success: true, message: 'Logout realizado com sucesso' });
-    });
-  } else {
-    res.json({ success: true, message: 'Logout realizado com sucesso' });
-  }
-};
-
-exports.isAdmin = (req, res, next) => {
-  const hasSession = req.session && req.session.adminId;
-  if (!hasSession) {
-    return res.status(401).json({ success: false, message: 'Não autorizado' });
-  }
-  next();
-};
 
 exports.getDashboard = async (req, res) => {
   try {
@@ -151,7 +100,7 @@ exports.updateProductStock = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Produto não encontrado' });
     }
 
-    if (typeof stock_quantity !== 'number' || stock_quantity < 0) {
+    if (!Number.isSafeInteger(stock_quantity) || stock_quantity < 0) {
       return res.status(400).json({ success: false, message: 'Quantidade inválida' });
     }
 
@@ -221,13 +170,16 @@ exports.updateOrderStatus = async (req, res) => {
   }
 };
 
-exports.getPixKey = (req, res) => {
-  const pixKey = process.env.PIX_KEY || '00020126580014BR.GOV.BCB.PIX0136123e4567-e89b-12d3-a456-4266141740005204000053039865802BR5925Doce Mana6008Sao Paulo62070503***6304ABC123';
-
-  res.json({ success: true, pixKey });
+exports.getPixKey = async (req, res) => {
+  try {
+    const pixKey = await require('../models/Settings').get();
+    res.json({ success: true, pixKey });
+  } catch {
+    res.status(503).json({ success: false, message: 'Configurações indisponíveis' });
+  }
 };
 
-exports.updatePixKey = (req, res) => {
+exports.updatePixKey = async (req, res) => {
   try {
     const { pix_key } = req.body;
 
@@ -235,7 +187,7 @@ exports.updatePixKey = (req, res) => {
       return res.status(400).json({ success: false, message: 'Chave Pix inválida' });
     }
 
-    process.env.PIX_KEY = pix_key;
+    await require('../models/Settings').set(pix_key);
     res.json({ success: true, message: 'Chave Pix atualizada com sucesso' });
   } catch (error) {
     console.error('Update Pix key error:', error);

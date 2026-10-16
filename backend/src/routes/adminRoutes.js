@@ -1,14 +1,15 @@
 const express = require('express');
 const adminController = require('../controllers/adminController');
+const auth = require('../auth');
 
 const router = express.Router();
 
 // Autenticação
-router.post('/login', adminController.login);
-router.post('/logout', adminController.logout);
+router.post('/login', auth.login);
+router.post('/logout', auth.logout);
 
 // Rotas protegidas
-router.use(adminController.isAdmin);
+router.use(auth.isAdmin);
 
 // Dashboard
 router.get('/dashboard', adminController.getDashboard);

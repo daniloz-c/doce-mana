@@ -1,4 +1,5 @@
-const db = require('../config/database');
+const remote = require('../config/runtime').remote;
+const db = remote ? null : require('../config/database');
 
 class Product {
   static getAll(onlyActive = true) {
@@ -137,4 +138,4 @@ class Product {
   }
 }
 
-module.exports = Product;
+module.exports = remote ? require('./supabase').Product : Product;

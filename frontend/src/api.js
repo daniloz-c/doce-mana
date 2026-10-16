@@ -16,7 +16,15 @@ class ApiClient {
     try {
       const response = await fetch(url, config);
 
-      const data = await response.json();
+      if (!response.headers.get('content-type')?.includes('application/json')) {
+        throw new Error(`API indisponível (HTTP ${response.status}): resposta não JSON. Verifique as funções /api na Vercel.`);
+      }
+      let data;
+      try {
+        data = await response.json();
+      } catch {
+        throw new Error('API retornou JSON inválido. Tente novamente.');
+      }
 
       if (!response.ok || !data.success) {
         if (response.status === 401 && endpoint !== '/admin/login') {
@@ -40,7 +48,7 @@ class ApiClient {
   }
 
   async getProductsByCategory(category) {
-    return this.request(`/category/${category}`);
+    return this.request(`/products/category/${encodeURIComponent(category)}`);
   }
 
   async getProductById(id) {
@@ -68,7 +76,7 @@ class ApiClient {
   }
 
   async getCategories() {
-    return this.request('/categories');
+    return this.request('/products/categories');
   }
 
   // Cart

@@ -1,3 +1,4 @@
+if (require('./runtime').remote) throw new Error('SQLite não é permitido no ambiente remoto');
 const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
 

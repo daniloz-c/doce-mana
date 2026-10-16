@@ -88,7 +88,7 @@ exports.decrementProductStock = async (req, res) => {
     const { id } = req.params;
     const { quantity } = req.body;
 
-    if (!quantity || quantity <= 0) {
+    if (!Number.isSafeInteger(quantity) || quantity <= 0) {
       return res.status(400).json({ success: false, message: 'Quantidade inválida' });
     }
 

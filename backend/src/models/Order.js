@@ -1,4 +1,5 @@
-const db = require('../config/database');
+const remote = require('../config/runtime').remote;
+const db = remote ? null : require('../config/database');
 const crypto = require('crypto');
 
 class Order {
@@ -204,4 +205,4 @@ class Order {
   }
 }
 
-module.exports = Order;
+module.exports = remote ? require('./supabase').Order : Order;

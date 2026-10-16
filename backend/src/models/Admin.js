@@ -1,4 +1,5 @@
-const db = require('../config/database');
+const remote = require('../config/runtime').remote;
+const db = remote ? null : require('../config/database');
 const bcrypt = require('bcryptjs');
 
 const Admin = {
@@ -30,7 +31,7 @@ const Admin = {
 
   create(username, password) {
     return new Promise((resolve, reject) => {
-      bcrypt.hash(password, 10)
+      bcrypt.hash(password, 12)
         .then(hash => {
           db.run(
             'INSERT INTO admin_users (username, password_hash, is_active, created_at) VALUES (?, ?, 1, CURRENT_TIMESTAMP)',
@@ -55,4 +56,10 @@ const Admin = {
   }
 };
 
-module.exports = Admin;
+Admin.findById = id => new Promise((resolve, reject) => {
+  db.get('SELECT * FROM admin_users WHERE id = ? AND is_active = 1', [id], (error, row) => error ? reject(error) : resolve(row));
+});
+Admin.revoke = id => new Promise((resolve, reject) => {
+  db.run('UPDATE admin_users SET token_version = token_version + 1 WHERE id = ?', [id], error => error ? reject(error) : resolve());
+});
+module.exports = remote ? require('./supabase').Admin : Admin;
