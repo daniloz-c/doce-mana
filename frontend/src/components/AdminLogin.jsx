@@ -23,7 +23,7 @@ function AdminLogin({ onLoginSuccess, onLogout }) {
         setError(result.message || 'Credenciais inválidas');
       }
     } catch (err) {
-      setError('Erro ao fazer login. Tente novamente.');
+      setError(err.message || 'Erro ao fazer login. Tente novamente.');
     } finally {
       setLoading(false);
     }
@@ -89,14 +89,6 @@ function AdminLogin({ onLoginSuccess, onLogout }) {
           </button>
         </form>
 
-        <div className="login-tips">
-          <h4>Dicas</h4>
-          <ul>
-            <li>Usuário padrão: <strong>admin</strong></li>
-            <li>Senha padrão: <strong>admin123</strong></li>
-            <li>Você pode alterar essas credenciais no painel</li>
-          </ul>
-        </div>
       </div>
 
       <button

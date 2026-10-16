@@ -1,39 +1,30 @@
 const API_BASE_URL = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_URL) || '/api';
 
 class ApiClient {
-  constructor() {
-    this.session = JSON.parse(localStorage.getItem('adminSession') || 'null');
-  }
-
   async request(endpoint, options = {}) {
     const url = `${API_BASE_URL}${endpoint}`;
 
     const config = {
       ...options,
+      credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
         ...options.headers
       }
     };
 
-    if (this.session && this.session.adminId) {
-      config.headers['X-Admin-Session'] = this.session.adminId;
-    }
-
     try {
       const response = await fetch(url, config);
 
-      if (response.status === 401 && endpoint.includes('/admin')) {
-        localStorage.removeItem('adminSession');
-        this.session = null;
-        window.location.href = '/admin';
-        throw new Error('Unauthorized');
-      }
-
       const data = await response.json();
 
-      if (!data.success) {
-        throw new Error(data.message || 'Error occurred');
+      if (!response.ok || !data.success) {
+        if (response.status === 401 && endpoint !== '/admin/login') {
+          window.dispatchEvent(new Event('admin-session-expired'));
+        }
+        const error = new Error(data.message || 'Error occurred');
+        error.status = response.status;
+        throw error;
       }
 
       return data;
@@ -144,11 +135,6 @@ class ApiClient {
       body: JSON.stringify({ username, password })
     });
 
-    if (data.success) {
-      this.session = { adminId: 'admin_' + Date.now() };
-      localStorage.setItem('adminSession', JSON.stringify(this.session));
-    }
-
     return data;
   }
 
@@ -156,11 +142,6 @@ class ApiClient {
     const data = await this.request('/admin/logout', {
       method: 'POST'
     });
-
-    if (data.success) {
-      localStorage.removeItem('adminSession');
-      this.session = null;
-    }
 
     return data;
   }

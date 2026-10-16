@@ -20,7 +20,9 @@ exports.login = async (req, res) => {
       return res.status(401).json({ success: false, message: 'Credenciais inválidas' });
     }
 
+    await new Promise((resolve, reject) => req.session.regenerate(error => error ? reject(error) : resolve()));
     req.session.adminId = admin.id;
+    await new Promise((resolve, reject) => req.session.save(error => error ? reject(error) : resolve()));
     res.json({ success: true, message: 'Login realizado com sucesso' });
   } catch (error) {
     console.error('Login error:', error);
@@ -44,8 +46,7 @@ exports.logout = (req, res) => {
 
 exports.isAdmin = (req, res, next) => {
   const hasSession = req.session && req.session.adminId;
-  const hasHeader = req.headers['x-admin-session'];
-  if (!hasSession && !hasHeader) {
+  if (!hasSession) {
     return res.status(401).json({ success: false, message: 'Não autorizado' });
   }
   next();

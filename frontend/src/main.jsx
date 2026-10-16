@@ -1,4 +1,7 @@
-import { useMemo, useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
+import AdminLogin from './components/AdminLogin';
+import AdminDashboard from './components/AdminDashboard';
+import { api } from './api';
 import { createRoot } from 'react-dom/client';
 import strawberryPhoto from '../../assets/img/819524151_18102754568288729_4846377332151617293_n.jpg';
 import browniePhoto from '../../assets/img/819236802_18102869321288729_8184103506698788233_n.jpg';
@@ -105,11 +108,7 @@ function App() {
   }
 
   function handleAdminClick() {
-    const isConfirmed = confirm('Deseja entrar no painel administrativo? Use:\nUsuário: admin\nSenha: admin123');
-    if (isConfirmed) {
-      setIsAdmin(true);
-      setShowAdminLogin(false);
-    }
+    window.location.href = '/admin';
   }
 
   function closeModal() {
@@ -448,7 +447,7 @@ function App() {
       )}
 
       {showAdminLogin && (
-        <AdminLoginView onClose={() => setShowAdminLogin(false)} onLogout={() => setIsAdmin(false)} />
+        <AdminLogin onLoginSuccess={() => { window.location.href = '/admin'; }} onLogout={() => setShowAdminLogin(false)} />
       )}
 
       {isAdmin && (
@@ -465,88 +464,32 @@ function App() {
   );
 }
 
-function AdminLoginView({ onClose, onLogout }) {
-  const [isLoading, setIsLoading] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
+function AdminPage() {
+  const [authenticated, setAuthenticated] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setIsLoading(true);
-    setShowPassword(false);
+  useEffect(() => {
+    const expire = () => setAuthenticated(false);
+    window.addEventListener('admin-session-expired', expire);
+    let active = true;
+    api.getAdminDashboard()
+      .then(() => { if (active) setAuthenticated(true); })
+      .catch(error => { if (active && error.status !== 401) setError(error.message); })
+      .finally(() => { if (active) setLoading(false); });
+    return () => {
+      active = false;
+      window.removeEventListener('admin-session-expired', expire);
+    };
+  }, []);
 
-    const username = prompt('Digite seu usuário:');
-    const password = showPassword ? prompt('Sua senha é: ') : null;
-
-    if (!username || !password) {
-      setIsLoading(false);
-      return;
-    }
-
-    try {
-      const success = confirm('Login simulado!\n\nUsuário: admin\nSenha: admin123\n\nAuto-confirmar entrada?');
-
-      if (success) {
-        onClose();
-        onLogout();
-        setIsLoading(false);
-      }
-    } catch (error) {
-      setIsLoading(false);
-      alert('Erro ao fazer login');
-    }
-  };
-
-  return (
-    <div className="admin-login">
-      <div className="login-container">
-        <div className="login-header">
-          <h1>Admin - Doce Maná</h1>
-          <p>Acesse o painel administrativo</p>
-        </div>
-
-        <form onSubmit={handleSubmit} className="login-form">
-          <div className="form-group">
-            <label htmlFor="username">Usuário</label>
-            <input
-              type="text"
-              id="username"
-              name="username"
-              placeholder="Seu usuário"
-              required
-              disabled={isLoading}
-            />
-          </div>
-
-          <div className="form-group">
-            <label htmlFor="password">Senha</label>
-            <input
-              type="text"
-              id="password"
-              name="password"
-              value={showPassword ? prompt('Digite sua senha (sou admin)') : ''}
-              disabled={isLoading}
-            />
-          </div>
-
-          <button
-            type="submit"
-            className="button button-primary button-full"
-            disabled={isLoading}
-          >
-            {isLoading ? 'Entrando...' : 'Entrar'}
-          </button>
-        </form>
-
-        <div className="login-tips">
-          <h4>Dicas</h4>
-          <ul>
-            <li>Usuário: <strong>admin</strong></li>
-            <li>Senha: <strong>admin123</strong></li>
-          </ul>
-        </div>
-      </div>
-    </div>
-  );
+  if (loading) return <div className="loading-container">Carregando painel...</div>;
+  if (error) return <div className="form-error" role="alert">{error}</div>;
+  return authenticated
+    ? <AdminDashboard onLogout={() => setAuthenticated(false)} />
+    : <AdminLogin onLoginSuccess={() => setAuthenticated(true)} onLogout={() => { window.location.href = '/'; }} />;
 }
 
-createRoot(document.getElementById('root')).render(<App />);
+createRoot(document.getElementById('root')).render(
+  /^\/admin(?:\/|$)/.test(window.location.pathname) ? <AdminPage /> : <App />
+);

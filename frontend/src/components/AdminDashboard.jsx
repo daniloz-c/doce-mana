@@ -21,6 +21,7 @@ function AdminDashboard({ onLogout }) {
   });
 
   const [searchTerm, setSearchTerm] = useState('');
+  const [productFilter, setProductFilter] = useState('all');
 
   useEffect(() => {
     loadDashboardData();
@@ -40,9 +41,13 @@ function AdminDashboard({ onLogout }) {
     }
   };
 
-  const handleLogout = () => {
-    api.logout();
-    onLogout();
+  const handleLogout = async () => {
+    try {
+      await api.logout();
+      onLogout();
+    } catch (error) {
+      alert('Erro ao sair. Tente novamente.');
+    }
   };
 
   const handleUpdatePixKey = async () => {
@@ -79,10 +84,18 @@ function AdminDashboard({ onLogout }) {
     }
   };
 
-  const filteredProducts = products.filter(product =>
-    product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (product.category && product.category.toLowerCase().includes(searchTerm.toLowerCase()))
-  );
+  const filteredProducts = products.filter(product => {
+    const matchesSearch = product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (product.category && product.category.toLowerCase().includes(searchTerm.toLowerCase()));
+    const matchesFilter = productFilter === 'all' || (
+      Number(product.is_active) === 1 && (
+        productFilter === 'available'
+          ? product.stock_quantity > 0
+          : product.stock_quantity <= 0
+      )
+    );
+    return matchesSearch && matchesFilter;
+  });
 
   const filteredOrders = orders.filter(order =>
     order.customer_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -230,6 +243,16 @@ function AdminDashboard({ onLogout }) {
           <>
             <div className="products-header">
               <h2>Gerenciar Produtos</h2>
+              <select
+                aria-label="Filtrar produtos por disponibilidade"
+                className="status-select"
+                value={productFilter}
+                onChange={(e) => setProductFilter(e.target.value)}
+              >
+                <option value="all">Todos</option>
+                <option value="available">Disponíveis</option>
+                <option value="out_of_stock">Esgotados</option>
+              </select>
               <input
                 type="text"
                 placeholder="Buscar produto..."

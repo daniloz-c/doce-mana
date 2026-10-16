@@ -43,7 +43,8 @@ export function generateWhatsAppMessage(items, total, pixKey) {
 }
 
 export function getWhatsAppNumber() {
-  return process.env.VITE_WHATSAPP_NUMBER || '5547984572173';
+  const envNumber = typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_WHATSAPP_NUMBER;
+  return envNumber || '5547984572173';
 }
 
 export function getWhatsAppUrl(message) {

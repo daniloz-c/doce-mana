@@ -5,7 +5,7 @@
   "description": "Doce Maná - Aplicação Web de Confeitaria (Frontend + Backend)",
   "scripts": {
     "build": "npm --prefix frontend run build",
-    "dev": "npm --prefix frontend run dev",
+    "dev": "node dev.cjs",
     "dev:backend": "npm --prefix backend run dev",
     "start": "npm --prefix backend run start"
   }

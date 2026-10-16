@@ -132,25 +132,41 @@ const initDb = async () => {
   ];
 
   const productInsert = `
-        INSERT OR IGNORE INTO products (name, description, price, category, image_url, stock_quantity) 
-        VALUES (?, ?, ?, ?, ?, ?)
+        INSERT INTO products (name, description, price, category, image_url, stock_quantity)
+        SELECT ?, ?, ?, ?, ?, ?
+        WHERE NOT EXISTS (SELECT 1 FROM products WHERE name = ?)
       `;
   for (const product of products) {
-    await run(productInsert, product);
+    await run(productInsert, [...product, product[0]]);
   }
 
-  // Criar admin inicial
-  const adminUsername = process.env.ADMIN_USERNAME || 'admin';
-  const adminPassword = process.env.ADMIN_PASSWORD || 'admin123';
+  const existingAdmin = await new Promise((resolve, reject) => {
+    db.get('SELECT id FROM admin_users LIMIT 1', (error, row) => {
+      if (error) reject(error);
+      else resolve(row);
+    });
+  });
 
-  try {
-    const passwordHash = await bcrypt.hash(adminPassword, 10);
+  if (!existingAdmin) {
+    const adminUsername = process.env.ADMIN_USERNAME || 'admin';
+    const adminPassword = process.env.ADMIN_PASSWORD;
+    if (
+      !adminPassword ||
+      adminPassword.length < 15 ||
+      Buffer.byteLength(adminPassword, 'utf8') > 72 ||
+      !/[A-Z]/.test(adminPassword) ||
+      !/[a-z]/.test(adminPassword) ||
+      !/[0-9]/.test(adminPassword) ||
+      !/[^A-Za-z0-9\s]/.test(adminPassword) ||
+      /\s/.test(adminPassword)
+    ) {
+      throw new Error('ADMIN_PASSWORD deve ter ao menos 15 caracteres, maiúsculas, minúsculas, números e símbolos, sem espaços e com até 72 bytes.');
+    }
+    const passwordHash = await bcrypt.hash(adminPassword, 12);
     await run(
-      'INSERT OR IGNORE INTO admin_users (username, password_hash) VALUES (?, ?)',
+      'INSERT INTO admin_users (username, password_hash) VALUES (?, ?)',
       [adminUsername, passwordHash]
     );
-  } catch (error) {
-    console.error('Error creating admin user:', error.message);
   }
 
   console.log('Database initialized with sample data');
