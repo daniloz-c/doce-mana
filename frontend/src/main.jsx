@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { createCheckoutAttempt } from './checkoutAttempt';
 import AdminLogin from './components/AdminLogin';
 import AdminDashboard from './components/AdminDashboard';
 import { api } from './api';
@@ -10,17 +11,6 @@ import './admin.css';
 
 const whatsappNumber = '5547984572173';
 const instagramUrl = 'https://www.instagram.com/p/Ddo6dcLFd_c/?img_index=1';
-window.demoProducts = [
-  { id: 1, name: 'Morango do Amor Clássico', description: 'Morango fresquinho, chocolate ao leite e aquele crocante irresistível.', price: 5, category: 'Morangos do Amor', image: strawberryPhoto, tag: 'Queridinho', emoji: '🍓' },
-  { id: 2, name: 'Morango do Amor Branco', description: 'Cobertura de chocolate branco para deixar tudo ainda mais especial.', price: 6, category: 'Morangos do Amor', image: strawberryPhoto, tag: 'Delicado', emoji: '🍓' },
-  { id: 3, name: 'Morango do Amor Diet', description: 'Uma versão leve com chocolate diet e pedacinhos de castanha.', price: 7, category: 'Morangos do Amor', emoji: '🍓' },
-  { id: 4, name: 'Brownie Tradicional', description: 'Chocolate meio amargo, casquinha por fora e maciez por dentro.', price: 8, category: 'Brownies', image: browniePhoto, tag: 'Feito à mão', emoji: '🍫' },
-  { id: 5, name: 'Brownie de Doce de Leite', description: 'Brownie intenso com um recheio cremoso de doce de leite.', price: 9, category: 'Brownies', image: browniePhoto, emoji: '🍫' },
-  { id: 6, name: 'Brownie de Nutella', description: 'Muito chocolate e um recheio generoso para adoçar seu dia.', price: 10, category: 'Brownies', image: browniePhoto, tag: 'Mais chocolatudo', emoji: '🍫' },
-  { id: 7, name: 'Brigadeiro Gourmet', description: 'Brigadeiro macio de chocolate com granulado especial.', price: 4, category: 'Doces Variados', emoji: '🍬' },
-  { id: 8, name: 'Beijinho de Coco', description: 'Coco fresquinho, sabor de festa e um toque de carinho.', price: 3.5, category: 'Doces Variados', emoji: '🥥' },
-  { id: 9, name: 'Cajuzinho', description: 'Amendoim e chocolate na combinação que todo mundo ama.', price: 3.5, category: 'Doces Variados', emoji: '🥜' },
-];
 
 function formatPrice(price) {
   return price.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -86,6 +76,35 @@ function Icon({ name, size = 20 }) {
 }
 
 function App() {
+  const [products, setProducts] = useState([]);
+  const [catalogError, setCatalogError] = useState('');
+  const [catalogLoading, setCatalogLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [customerName, setCustomerName] = useState('');
+  const [customerPhone, setCustomerPhone] = useState('');
+  const [requestId, setRequestId] = useState(() => crypto.randomUUID());
+  const [receipt, setReceipt] = useState(null);
+  const attempt = useRef(createCheckoutAttempt());
+  const sending = useRef(false);
+  const pending = attempt.current.pending;
+  async function refreshProducts() {
+    try {
+      const data = await api.getProducts();
+      setProducts(data.products.map(product => ({ ...product, image_url: product.image_url || (product.category === 'Brownies' ? browniePhoto : product.category === 'Morangos do Amor' ? strawberryPhoto : null) })));
+      setCatalogError('');
+      setCart(current => attempt.current.pending ? current : Object.fromEntries(data.products.filter(p => current[p.id]).map(p => [p.id, Math.min(current[p.id], p.stock_quantity)])));
+    } catch (error) {
+      setCatalogError(error.message);
+    } finally {
+      setCatalogLoading(false);
+    }
+  }
+  useEffect(() => {
+    refreshProducts();
+    const timer = setInterval(refreshProducts, 30000);
+    window.addEventListener('focus', refreshProducts);
+    return () => { clearInterval(timer); window.removeEventListener('focus', refreshProducts); };
+  }, []);
   const [activeCategory, setActiveCategory] = useState('Todos');
   const [cart, setCart] = useState({});
   const [isCartOpen, setIsCartOpen] = useState(false);
@@ -94,8 +113,10 @@ function App() {
   const [isAdmin, setIsAdmin] = useState(false);
 
   function changeQuantity(productId, amount) {
+    if (sending.current || attempt.current.pending) return;
+    setRequestId(crypto.randomUUID());
     setCart((currentCart) => {
-      const quantity = (currentCart[productId] || 0) + amount;
+      const quantity = Math.min((currentCart[productId] || 0) + amount, products.find(p => p.id === productId)?.stock_quantity || 0);
       const nextCart = { ...currentCart };
       if (quantity <= 0) {
         delete nextCart[productId];
@@ -125,8 +146,8 @@ function App() {
     setOrderSent(true);
   }
 
-  const cartItems = Object.keys(cart).map(productId => {
-    const product = window.demoProducts.find(p => p.id === parseInt(productId));
+  const cartItems = pending?.items || Object.keys(cart).map(productId => {
+    const product = products.find(p => p.id === parseInt(productId));
     return product && cart[productId] ? { ...product, quantity: cart[productId] } : null;
   }).filter(Boolean);
 
@@ -135,33 +156,32 @@ function App() {
     0,
   );
 
-  function checkout() {
-    if (cartTotal === 0) {
+  async function checkout() {
+    if (!attempt.current.pending && cartItems.length === 0) {
       alert('Seu carrinho está vazio. Adicione produtos para fazer um pedido.');
       return;
     }
 
-    const orderLines = cartItems
-      .map(
-        (item) =>
-          `• ${item.quantity}x ${item.name} — ${formatPrice(item.price * item.quantity)}`,
-      )
-      .join('\n');
-
-    const message = [
-      'Oi! Gostaria de fazer um pedido na Doce Maná 🍓',
-      '',
-      orderLines,
-      '',
-      `Total: ${formatPrice(cartTotal)}`,
-    ].join('\n');
-
-    window.open(
-      `https://wa.me/${whatsappNumber}?text=${encodeURIComponent(message)}`,
-      '_blank',
-      'noopener,noreferrer',
-    );
-    setOrderSent(true);
+    if (sending.current || (!attempt.current.pending && (!customerName.trim() || !customerPhone.trim()))) return;
+    const snapshot = attempt.current.begin({ request_id: requestId, customer_name: customerName, customer_phone: customerPhone, items: cartItems.map(item => ({ product_id: item.id, quantity: item.quantity })) }, cartItems);
+    sending.current = true;
+    setSubmitting(true);
+    try {
+      const { order } = await api.createOrder(snapshot.payload);
+      const message = [`Pedido #${order.id} - ${customerName}`, ...order.items.map(item => `${item.quantity}x ${item.name} - ${formatPrice(item.price * item.quantity)}`), `Total: ${formatPrice(order.total_amount)}`].join('\n');
+      setReceipt({ id: order.id, url: `https://wa.me/${whatsappNumber}?text=${encodeURIComponent(message)}` });
+      attempt.current.finish();
+      setCart({});
+      setRequestId(crypto.randomUUID());
+      await refreshProducts();
+    } catch (error) {
+      alert(error.message);
+      attempt.current.reject(error);
+      if (!attempt.current.pending) { setRequestId(crypto.randomUUID()); await refreshProducts(); }
+    } finally {
+      sending.current = false;
+      setSubmitting(false);
+    }
   }
 
   return (
@@ -303,11 +323,14 @@ function App() {
           </section>
 
           <section className="product-grid">
-            {window.demoProducts.map((product, index) => (
+            {catalogLoading && <p role="status">Carregando cardápio...</p>}
+            {catalogError && <p role="alert">{catalogError} <button onClick={refreshProducts}>Tentar novamente</button></p>}
+            {!catalogLoading && !catalogError && products.length === 0 && <p>Nenhum produto disponível no momento.</p>}
+            {products.filter(product => activeCategory === 'Todos' || product.category === activeCategory).map((product, index) => (
               <article className="product-card" key={product.id}>
                 <div className={`product-image product-tone-${index % 4}`}>
-                  {product.image ? (
-                    <img src={product.image} alt={product.name} loading="lazy" />
+                  {product.image_url ? (
+                    <img src={product.image_url} alt={product.name} loading="lazy" />
                   ) : (
                     <div className="product-placeholder" aria-hidden="true">
                       <span>{product.emoji}</span>
@@ -402,6 +425,7 @@ function App() {
               </button>
             </div>
 
+            {receipt && <p role="status">Pedido #{receipt.id} registrado. <a href={receipt.url} target="_blank" rel="noreferrer">Enviar pedido pelo WhatsApp</a></p>}
             {Object.keys(cart).length === 0 ? (
               <div className="empty-cart">
                 <span>🍓</span>
@@ -435,8 +459,12 @@ function App() {
                 <div className="cart-summary">
                   <div><span>Subtotal</span><strong>{formatPrice(cartTotal)}</strong></div>
                   <small>Combinar entrega pelo WhatsApp ♡</small>
-                  <button type="button" className="button button-primary checkout-button" onClick={checkout}>
-                    Pedir pelo WhatsApp <Icon name="arrow" size={18} />
+                  <label>Nome<input value={customerName} disabled={submitting || !!pending} onChange={e => setCustomerName(e.target.value)} maxLength={120} /></label>
+                  <label>Telefone<input type="tel" value={customerPhone} disabled={submitting || !!pending} onChange={e => setCustomerPhone(e.target.value)} maxLength={30} /></label>
+                  {pending && <p role="status">Tentativa pendente: itens e dados estão preservados. Reenvie para obter o resultado sem criar outro pedido. Não feche nem recarregue esta página.</p>}
+                  <small>Registrar o pedido consome o estoque. Depois, envie a confirmação pelo WhatsApp.</small>
+                  <button type="button" disabled={submitting || (!pending && (!!catalogError || !customerName.trim() || !customerPhone.trim()))} className="button button-primary checkout-button" onClick={checkout}>
+                    {pending ? 'Consultar / reenviar mesma tentativa' : 'Pedir pelo WhatsApp'} <Icon name="arrow" size={18} />
                   </button>
                   {orderSent && <p className="order-note" role="status">Seu pedido foi preparado para enviar. Se a nova aba não abriu, confira o bloqueador de pop-ups.</p>}
                 </div>

@@ -4,6 +4,17 @@ import { formatDate, formatPrice, getStockStatus } from '../utils';
 
 function AdminDashboard({ onLogout }) {
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [stockDraft, setStockDraft] = useState({});
+  const [newProduct, setNewProduct] = useState({ name: '', category: '', price: '', description: '' });
+  async function mutate(action) {
+    setBusy(true);
+    setError('');
+    try { await action(); await loadDashboardData(); }
+    catch (error) { setError(error.message); }
+    finally { setBusy(false); }
+  }
   const [activeView, setActiveView] = useState('dashboard');
   const [products, setProducts] = useState([]);
   const [orders, setOrders] = useState([]);
@@ -35,7 +46,7 @@ function AdminDashboard({ onLogout }) {
       setProducts(dashboardData.allProducts || []);
       setOrders(dashboardData.orders || []);
     } catch (error) {
-      console.error('Error loading dashboard:', error);
+      setError(error.message);
     } finally {
       setLoading(false);
     }
@@ -156,6 +167,7 @@ function AdminDashboard({ onLogout }) {
       </nav>
 
       <main className="admin-content">
+        {error && <p role="alert">{error} <button onClick={loadDashboardData}>Atualizar painel</button></p>}
         {activeView === 'dashboard' && (
           <>
             <div className="stats-grid">
@@ -262,6 +274,12 @@ function AdminDashboard({ onLogout }) {
               />
             </div>
 
+            <button disabled={busy} onClick={() => { if (window.confirm('Importar produtos ausentes do catálogo original com estoque zero? Produtos existentes não serão alterados.')) mutate(() => api.importCatalog()); }}>Importar catálogo original (estoque zero)</button>
+            <form onSubmit={e => { e.preventDefault(); mutate(async () => { await api.createProduct({ ...newProduct, price: Number(newProduct.price), stock_quantity: 0 }); setNewProduct({ name: '', category: '', price: '', description: '' }); }); }}>
+              <h3>Cadastrar produto com estoque zero</h3>
+              {['name', 'category', 'price', 'description'].map((field, index) => <label key={field}>{['Nome', 'Categoria', 'Preço', 'Descrição'][index]}<input required={field !== 'description'} type={field === 'price' ? 'number' : 'text'} min={field === 'price' ? 0 : undefined} step={field === 'price' ? '0.01' : undefined} value={newProduct[field]} onChange={e => setNewProduct({ ...newProduct, [field]: e.target.value })} /></label>)}
+              <button disabled={busy}>Cadastrar</button>
+            </form>
             <div className="products-grid">
               {filteredProducts.length === 0 ? (
                 <div className="empty-grid">Nenhum produto encontrado</div>
@@ -301,19 +319,15 @@ function AdminDashboard({ onLogout }) {
                           <small>/ unidade</small>
                         </div>
                         <div>
-                          {stockStatus.status !== 'available' && (
-                            <button
-                              type="button"
-                              className="edit-stock-button"
-                              onClick={() => alert(`Atualizar estoque do ${product.name}: ${product.stock_quantity || 0} unidades`)}
-                            >
-                              {stockStatus.status === 'out_of_stock' ? 'Restaurar' : 'Atualizar'}
-                            </button>
-                          )}
+                          <form onSubmit={e => { e.preventDefault(); const value = stockDraft[product.id] ?? String(product.stock_quantity); if (value !== '' && Number.isInteger(Number(value)) && Number(value) >= 0) mutate(async () => { await api.updateStock(product.id, Number(value), product.stock_quantity); setStockDraft(current => { const next = { ...current }; delete next[product.id]; return next; }); }); }}>
+                            <label>Estoque disponível<input type="number" min="0" step="1" required value={stockDraft[product.id] ?? product.stock_quantity} onChange={e => setStockDraft({ ...stockDraft, [product.id]: e.target.value })} /></label>
+                            <button disabled={busy} className="edit-stock-button">Salvar quantidade</button>
+                          </form>
                           <button
                             type="button"
                             className="status-activity-button"
-                            onClick={() => alert(`Desativar/ativar: ${product.is_active ? 'Ativo' : 'Inativo'}`)}
+                            disabled={busy}
+                            onClick={() => mutate(() => api.toggleProduct(product.id))}
                           >
                             {product.is_active ? 'Ativo' : 'Inativo'}
                           </button>

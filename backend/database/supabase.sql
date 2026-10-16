@@ -63,4 +63,64 @@ revoke all on function public.revoke_admin_sessions(bigint) from public, anon, a
 revoke all on function public.decrement_stock(bigint, integer) from public, anon, authenticated;
 grant execute on function public.revoke_admin_sessions(bigint) to service_role;
 grant execute on function public.decrement_stock(bigint, integer) to service_role;
+alter table public.orders add column if not exists request_id text unique;
+create or replace function public.import_catalog(catalog jsonb) returns integer
+language plpgsql set search_path = public as $$
+declare item jsonb; imported integer := 0;
+begin
+  lock table public.products in share row exclusive mode;
+  for item in select value from jsonb_array_elements(catalog) loop
+    if not exists (select 1 from products where name = item->>'name' and category = item->>'category') then
+      insert into products(name, description, price, category, stock_quantity)
+      values(item->>'name', item->>'description', (item->>'price')::double precision, item->>'category', 0);
+      imported := imported + 1;
+    end if;
+  end loop;
+  return imported;
+end;
+$$;
+create or replace function public.create_order(payload jsonb) returns bigint
+language plpgsql set search_path = public as $$
+declare item jsonb; product_row products%rowtype; order_id bigint; total double precision := 0; amount integer;
+begin
+  perform pg_advisory_xact_lock(hashtextextended(payload->>'request_id', 0));
+  select id into order_id from orders where request_id = payload->>'request_id';
+  if found then return order_id; end if;
+  if jsonb_array_length(payload->'items') < 1 then raise exception 'invalid items'; end if;
+  insert into orders(customer_name, customer_phone, total_amount, request_id)
+  values(payload->>'customer_name', payload->>'customer_phone', 0, payload->>'request_id') returning id into order_id;
+  for item in select value from jsonb_array_elements(payload->'items') order by (value->>'product_id')::bigint loop
+    amount := (item->>'quantity')::integer;
+    if amount is null or amount <= 0 then raise exception 'invalid quantity'; end if;
+    update products set stock_quantity = stock_quantity - amount, updated_at = now()
+    where id = (item->>'product_id')::bigint and is_active = 1 and stock_quantity >= amount
+    returning * into product_row;
+    if not found then raise exception using errcode = 'P0001', message = 'insufficient_stock'; end if;
+    insert into order_items(order_id, product_id, quantity, price) values(order_id, product_row.id, amount, product_row.price);
+    total := total + amount * product_row.price;
+  end loop;
+  update orders set total_amount = total where id = order_id;
+  return order_id;
+end;
+$$;
+create or replace function public.set_order_status(target bigint, new_status text) returns integer
+language plpgsql set search_path = public as $$
+declare current_status text; item record;
+begin
+  if new_status not in ('pending','confirmed','cancelled','completed') then raise exception 'invalid status'; end if;
+  select status into current_status from orders where id = target for update;
+  if not found then return 0; end if;
+  if current_status = new_status then return 1; end if;
+  if current_status in ('cancelled','completed') or new_status = 'pending' then raise exception 'invalid_transition'; end if;
+  if new_status = 'cancelled' then
+    for item in select product_id, quantity from order_items where order_id = target order by product_id loop
+      update products set stock_quantity = stock_quantity + item.quantity, updated_at = now() where id = item.product_id;
+    end loop;
+  end if;
+  update orders set status = new_status, updated_at = now() where id = target;
+  return 1;
+end;
+$$;
+revoke all on function public.import_catalog(jsonb), public.create_order(jsonb), public.set_order_status(bigint, text) from public, anon, authenticated;
+grant execute on function public.import_catalog(jsonb), public.create_order(jsonb), public.set_order_status(bigint, text) to service_role;
 commit;

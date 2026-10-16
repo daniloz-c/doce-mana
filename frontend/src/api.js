@@ -158,6 +158,18 @@ class ApiClient {
     return this.request('/admin/dashboard');
   }
 
+  async importCatalog() {
+    return this.request('/admin/products/import', { method: 'POST' });
+  }
+
+  async updateStock(id, stock_quantity, expected_stock_quantity) {
+    return this.request(`/admin/products/${id}/stock`, { method: 'PATCH', body: JSON.stringify({ stock_quantity, expected_stock_quantity }) });
+  }
+
+  async toggleProduct(id) {
+    return this.request(`/admin/products/${id}/toggle`, { method: 'PATCH' });
+  }
+
   async getAdminProducts() {
     return this.request('/admin/products');
   }

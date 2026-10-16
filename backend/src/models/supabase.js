@@ -6,16 +6,20 @@ function getClient() {
 }
 async function result(query) {
   const { data, error } = await query;
-  if (error) throw new Error('Persistência indisponível');
+  if (error) {
+    if (['insufficient_stock', 'invalid_transition'].includes(error.message)) throw Object.assign(new Error(error.message === 'insufficient_stock' ? 'Estoque insuficiente. Atualize a sacola.' : 'Transição de status inválida'), { status: 409 });
+    throw new Error('Persistência indisponível');
+  }
   return data;
 }
 const table = name => getClient().from(name);
 const fields = ['name', 'description', 'price', 'category', 'image_url', 'stock_quantity', 'is_active'];
 const clean = value => Object.fromEntries(Object.entries(value).filter(([key]) => fields.includes(key)));
 const Product = {
+  importCatalog() { return result(getClient().rpc('import_catalog', { catalog: require('../catalog') })); },
   async getAll(active = true) {
     let query = table('products').select('*').order('category').order('name');
-    if (active) query = query.eq('is_active', 1);
+    if (active) query = query.eq('is_active', 1).gt('stock_quantity', 0);
     return result(query);
   },
   async getByCategory(category, active = true) { return (await this.getAll(active)).filter(p => p.category === category); },
@@ -24,7 +28,9 @@ const Product = {
   create(product) { return result(table('products').insert(clean(product)).select().single()); },
   async update(id, product) {
     if (!Object.keys(clean(product)).length) return { changes: 0 };
-    const rows = await result(table('products').update({ ...clean(product), updated_at: new Date().toISOString() }).eq('id', id).select('id'));
+    let query = table('products').update({ ...clean(product), updated_at: new Date().toISOString() }).eq('id', id);
+    if (product.expected_stock_quantity !== undefined) query = query.eq('stock_quantity', product.expected_stock_quantity);
+    const rows = await result(query.select('id'));
     return { changes: rows.length };
   },
   delete(id) { return this.update(id, { is_active: 0 }); },
@@ -48,11 +54,15 @@ function order(row) {
   return { ...row, items: row.order_items.map(({ products, ...item }) => ({ ...item, name: products?.name })) };
 }
 const Order = {
+  async create(payload) {
+    const id = await result(getClient().rpc('create_order', { payload }));
+    return this.getById(id);
+  },
   async getAll() { return (await result(table('orders').select('*,order_items(*,products(name))').order('created_at', { ascending: false }))).map(order); },
   async getById(id) { return order(await result(table('orders').select('*,order_items(*,products(name))').eq('id', id).maybeSingle())); },
   async updateStatus(id, status) {
-    const rows = await result(table('orders').update({ status, updated_at: new Date().toISOString() }).eq('id', id).select('id'));
-    return { changes: rows.length };
+    const changes = await result(getClient().rpc('set_order_status', { target: Number(id), new_status: status }));
+    return { changes };
   }
 };
 const Settings = {

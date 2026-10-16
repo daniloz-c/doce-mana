@@ -17,8 +17,9 @@ router.get('/dashboard', adminController.getDashboard);
 // Produtos
 router.get('/products', adminController.getProducts);
 router.get('/products/:id', adminController.getProduct);
-router.post('/products', adminController.createProduct);
-router.put('/products/:id', adminController.updateProduct);
+router.post('/products/import', require('../controllers/inventoryController').importCatalog);
+router.post('/products', require('../controllers/inventoryController').validateProduct, adminController.createProduct);
+router.put('/products/:id', require('../controllers/inventoryController').validateProduct, adminController.updateProduct);
 router.delete('/products/:id', adminController.deleteProduct);
 router.patch('/products/:id/stock', adminController.updateProductStock);
 router.patch('/products/:id/toggle', adminController.toggleProductStatus);

@@ -8,8 +8,8 @@ router.get('/categories', productController.getCategories);
 router.get('/category/:category', productController.getProductsByCategory);
 router.get('/:id', productController.getProductById);
 router.use(require('../auth').isAdmin);
-router.post('/', productController.createProduct);
-router.put('/:id', productController.updateProduct);
+router.post('/', require('../controllers/inventoryController').validateProduct, productController.createProduct);
+router.put('/:id', require('../controllers/inventoryController').validateProduct, productController.updateProduct);
 router.delete('/:id', productController.deleteProduct);
 router.post('/:id/decrement', productController.decrementProductStock);
 

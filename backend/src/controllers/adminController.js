@@ -93,18 +93,19 @@ exports.deleteProduct = async (req, res) => {
 exports.updateProductStock = async (req, res) => {
   try {
     const { id } = req.params;
-    const { stock_quantity } = req.body;
+    const { stock_quantity, expected_stock_quantity } = req.body;
 
     const product = await Product.getById(id);
     if (!product) {
       return res.status(404).json({ success: false, message: 'Produto não encontrado' });
     }
 
-    if (!Number.isSafeInteger(stock_quantity) || stock_quantity < 0) {
+    if (!Number.isSafeInteger(stock_quantity) || stock_quantity < 0 || stock_quantity > 2147483647 || !Number.isSafeInteger(expected_stock_quantity) || expected_stock_quantity < 0) {
       return res.status(400).json({ success: false, message: 'Quantidade inválida' });
     }
 
-    await Product.update(id, { stock_quantity: stock_quantity > 0 ? stock_quantity : 0, is_active: stock_quantity > 0 ? 1 : 0 });
+    const result = await Product.update(id, { stock_quantity, expected_stock_quantity });
+    if (!result.changes) return res.status(409).json({ success: false, message: 'Estoque alterado por outro pedido ou administrador. Atualize o painel antes de salvar.' });
     res.json({ success: true, message: 'Estoque atualizado com sucesso' });
   } catch (error) {
     console.error('Update stock error:', error);
@@ -163,10 +164,11 @@ exports.updateOrderStatus = async (req, res) => {
     }
 
     const result = await Order.updateStatus(id, status);
+    if (!result.changes) return res.status(404).json({ success: false, message: 'Pedido não encontrado' });
     res.json({ success: true, message: 'Status atualizado com sucesso' });
   } catch (error) {
     console.error('Update order status error:', error);
-    res.status(500).json({ success: false, message: 'Erro ao atualizar status' });
+    res.status(error.status || 500).json({ success: false, message: error.status === 409 ? error.message : 'Erro ao atualizar status' });
   }
 };
 

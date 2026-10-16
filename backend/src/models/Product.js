@@ -8,7 +8,7 @@ class Product {
       const params = [];
 
       if (onlyActive) {
-        query += ' WHERE is_active = 1';
+        query += ' WHERE is_active = 1 AND stock_quantity > 0';
       }
 
       query += ' ORDER BY category, name';
@@ -26,7 +26,7 @@ class Product {
       const params = [category];
 
       if (onlyActive) {
-        query += ' AND is_active = 1';
+        query += ' AND is_active = 1 AND stock_quantity > 0';
       }
 
       query += ' ORDER BY name';
@@ -40,7 +40,7 @@ class Product {
 
   static getCategories() {
     return new Promise((resolve, reject) => {
-      db.all('SELECT DISTINCT category FROM products WHERE is_active = 1 ORDER BY category', [], (err, rows) => {
+      db.all('SELECT DISTINCT category FROM products WHERE is_active = 1 AND stock_quantity > 0 ORDER BY category', [], (err, rows) => {
         if (err) reject(err);
         else resolve(rows.map(r => r.category));
       });
@@ -91,8 +91,10 @@ class Product {
       updates.push('updated_at = CURRENT_TIMESTAMP');
       values.push(id);
 
+      const expected = product.expected_stock_quantity;
+      if (expected !== undefined) values.push(expected);
       db.run(
-        `UPDATE products SET ${updates.join(', ')} WHERE id = ?`,
+        `UPDATE products SET ${updates.join(', ')} WHERE id = ?${expected !== undefined ? ' AND stock_quantity = ?' : ''}`,
         values,
         function(err) {
           if (err) reject(err);
@@ -138,4 +140,16 @@ class Product {
   }
 }
 
+Product.importCatalog = async function() {
+  let imported = 0;
+  for (const product of require('../catalog')) {
+    const result = await new Promise((resolve, reject) => db.run('INSERT INTO products (name, description, price, category, stock_quantity) SELECT ?, ?, ?, ?, 0 WHERE NOT EXISTS (SELECT 1 FROM products WHERE name = ? AND category = ?)', [product.name, product.description, product.price, product.category, product.name, product.category], function(error) { error ? reject(error) : resolve(this); }));
+    imported += result.changes;
+  }
+  return imported;
+};
+for (const method of ['create', 'update', 'delete', 'decrementStock', 'incrementStock', 'importCatalog']) {
+  const original = Product[method].bind(Product);
+  Product[method] = (...args) => require('./serialize')(() => original(...args));
+}
 module.exports = remote ? require('./supabase').Product : Product;

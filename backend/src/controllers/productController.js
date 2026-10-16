@@ -35,7 +35,7 @@ exports.getProductById = async (req, res) => {
   try {
     const { id } = req.params;
     const product = await Product.getById(id);
-    if (!product) {
+    if (!product || !product.is_active || product.stock_quantity <= 0) {
       return res.status(404).json({ success: false, message: 'Produto não encontrado' });
     }
     res.json({ success: true, product });
