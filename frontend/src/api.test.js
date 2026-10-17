@@ -15,6 +15,10 @@ test('resposta perdida preserva snapshot e chave até resultado definitivo', () 
     assert.equal(attempt.pending.payload.items[0].quantity, 2);
     assert.equal(attempt.pending.items.length, 1);
   }
+  const restored = createCheckoutAttempt(JSON.parse(JSON.stringify(attempt.pending)));
+  restored.reject({ status: 401 });
+  assert.equal(restored.begin({ request_id: 'new' }, []).payload.request_id, 'original');
+  assert.equal(restored.pending.items[0].quantity, 2);
   attempt.finish();
   assert.equal(attempt.pending, null);
   for (const status of [400, 409]) {
@@ -59,4 +63,33 @@ test('resposta HTML e JSON inválido produzem erro claro', async () => {
     };
     assert.equal((await api.login('test', 'test')).success, true);
   } finally { globalThis.fetch = original; console.error = log; }
+});
+
+test('métodos de autenticação de cliente e upload de imagem', async () => {
+  const original = globalThis.fetch;
+  const calls = [];
+  try {
+    globalThis.fetch = async (url, options) => {
+      calls.push({ url, ...options });
+      return new Response(JSON.stringify({ success: true, url: 'https://example.com/oauth', image_url: 'https://img.test/pic.png' }), {
+        headers: { 'content-type': 'application/json' }
+      });
+    };
+    const session = await api.getCustomerSession();
+    assert.equal(session.success, true);
+    assert.equal(calls[0].url, '/api/customer/session');
+
+    const loginRes = await api.loginCustomer();
+    assert.equal(loginRes.url, 'https://example.com/oauth');
+    assert.equal(calls[1].url, '/api/customer/login');
+
+    const logoutRes = await api.logoutCustomer();
+    assert.equal(logoutRes.success, true);
+    assert.equal(calls[2].url, '/api/customer/logout');
+
+    const uploadRes = await api.uploadProductImage(new Blob(['fake'], { type: 'image/png' }));
+    assert.equal(uploadRes.image_url, 'https://img.test/pic.png');
+    assert.equal(calls[3].url, '/api/admin/upload');
+    assert.equal(calls[3].method, 'POST');
+  } finally { globalThis.fetch = original; }
 });

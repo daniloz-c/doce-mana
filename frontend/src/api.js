@@ -27,7 +27,7 @@ class ApiClient {
       }
 
       if (!response.ok || !data.success) {
-        if (response.status === 401 && endpoint !== '/admin/login') {
+        if (response.status === 401 && (endpoint.startsWith('/admin/') || (endpoint.startsWith('/products') && options.method)) && endpoint !== '/admin/login') {
           window.dispatchEvent(new Event('admin-session-expired'));
         }
         const error = new Error(data.message || 'Error occurred');
@@ -73,6 +73,36 @@ class ApiClient {
     return this.request(`/products/${id}`, {
       method: 'DELETE'
     });
+  }
+
+  async getCustomerSession() {
+    return this.request('/customer/session');
+  }
+
+  async loginCustomer() {
+    return this.request('/customer/login', { method: 'POST' });
+  }
+
+  async logoutCustomer() {
+    return this.request('/customer/logout', { method: 'POST' });
+  }
+
+  async uploadProductImage(file) {
+    const formData = new FormData();
+    formData.append('image', file);
+    const url = `${API_BASE_URL}/admin/upload`;
+    const response = await fetch(url, {
+      method: 'POST',
+      credentials: 'include',
+      body: formData
+    });
+    const data = await response.json();
+    if (!response.ok || !data.success) {
+      const error = new Error(data.message || 'Falha no upload da imagem');
+      error.status = response.status;
+      throw error;
+    }
+    return data;
   }
 
   async getCategories() {

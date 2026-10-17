@@ -6,6 +6,7 @@ process.env.JWT_SECRET = require('crypto').randomBytes(32).toString('hex');
 process.env.APP_ORIGIN = 'https://admin.example.test';
 process.env.SUPABASE_URL = 'https://database.example.test';
 process.env.SUPABASE_SERVICE_ROLE_KEY = 'test-only-not-a-credential';
+process.env.SUPABASE_ANON_KEY = 'test-only-anon-key';
 const models = require('../src/models/supabase');
 const admin = { id: 1, username: 'tester', token_version: 0, is_active: 1 };
 models.Admin.findByUsername = async name => name === admin.username ? admin : null;

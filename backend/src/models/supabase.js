@@ -7,6 +7,7 @@ function getClient() {
 async function result(query) {
   const { data, error } = await query;
   if (error) {
+    if (error.message === 'ownership mismatch') throw Object.assign(new Error('Token de pedido já utilizado por outro cliente'), { status: 409 });
     if (['insufficient_stock', 'invalid_transition'].includes(error.message)) throw Object.assign(new Error(error.message === 'insufficient_stock' ? 'Estoque insuficiente. Atualize a sacola.' : 'Transição de status inválida'), { status: 409 });
     throw new Error('Persistência indisponível');
   }
@@ -69,4 +70,4 @@ const Settings = {
   async get() { return (await result(table('settings').select('value').eq('key', 'pix_key').maybeSingle()))?.value || ''; },
   async set(value) { await result(table('settings').upsert({ key: 'pix_key', value })); }
 };
-module.exports = { Product, Admin, Order, Settings };
+module.exports = { Product, Admin, Order, Settings, getClient };

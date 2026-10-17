@@ -11,6 +11,8 @@ router.post('/logout', auth.logout);
 // Rotas protegidas
 router.use(auth.isAdmin);
 
+router.post('/upload', require('../controllers/uploadController').upload);
+
 // Dashboard
 router.get('/dashboard', adminController.getDashboard);
 

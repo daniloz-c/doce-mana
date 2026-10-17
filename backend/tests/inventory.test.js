@@ -18,7 +18,7 @@ test('catálogo explícito, estoque, concorrência, rollback e cancelamento', as
     assert.equal(await Product.importCatalog(), 0);
     assert.equal((await Product.getById(product.id)).price, 42);
     assert.equal((await Product.getById(product.id)).stock_quantity, 2);
-    const input = () => ({ request_id: randomUUID(), customer_name: 'Cliente', customer_phone: '47999999999', total_amount: 0, items: [{ product_id: product.id, quantity: 2 }] });
+    const input = () => ({ request_id: randomUUID(), customer_id: 'cust-1', customer_email: 'cust1@test.com', customer_name: 'Cliente', customer_phone: '47999999999', total_amount: 0, items: [{ product_id: product.id, quantity: 2 }] });
     const first = input();
     const results = await Promise.allSettled([Order.create(first), Order.create(input())]);
     assert.equal(results.filter(r => r.status === 'fulfilled').length, 1);
@@ -27,6 +27,10 @@ test('catálogo explícito, estoque, concorrência, rollback e cancelamento', as
     assert.equal(order.total_amount, 84);
     assert.equal(order.items.length, 1);
     assert.equal((await Order.create(first)).id, order.id);
+
+    const stolenAttempt = { ...first, customer_id: 'other-cust' };
+    await assert.rejects(Order.create(stolenAttempt), { status: 409 });
+
     assert.equal((await Product.getById(product.id)).stock_quantity, 0);
     assert.deepEqual(await Product.getAll(), []);
     assert.equal((await Product.update(product.id, { stock_quantity: 10, expected_stock_quantity: 2 })).changes, 0);
@@ -47,7 +51,7 @@ test('validação rejeita quantidades inválidas e itens repetidos antes da pers
   const controller = require('../src/controllers/inventoryController');
   for (const items of [[{ product_id: 1, quantity: -1 }], [{ product_id: 1, quantity: 0.5 }], [{ product_id: 1, quantity: 1 }, { product_id: 1, quantity: 1 }], []]) {
     let status;
-    await controller.create({ body: { request_id: randomUUID(), customer_name: 'Cliente', customer_phone: '47999999999', items } }, { status(value) { status = value; return this; }, json() {} });
+    await controller.create({ customer: { id: 'cust-1' }, body: { request_id: randomUUID(), customer_name: 'Cliente', customer_phone: '47999999999', items } }, { status(value) { status = value; return this; }, json() {} });
     assert.equal(status, 400);
   }
 });

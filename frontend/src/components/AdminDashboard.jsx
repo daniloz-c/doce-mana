@@ -7,7 +7,10 @@ function AdminDashboard({ onLogout }) {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [stockDraft, setStockDraft] = useState({});
-  const [newProduct, setNewProduct] = useState({ name: '', category: '', price: '', description: '' });
+  const [newProduct, setNewProduct] = useState({ name: '', category: '', price: '', description: '', image_url: '' });
+  const [editingProduct, setEditingProduct] = useState(null);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [uploadError, setUploadError] = useState('');
   async function mutate(action) {
     setBusy(true);
     setError('');
@@ -49,6 +52,24 @@ function AdminDashboard({ onLogout }) {
       setError(error.message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleImageFileChange = async (file, targetSetter) => {
+    if (!file || uploadingImage) return;
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type) || file.size > 4 * 1024 * 1024) {
+      setUploadError('Use JPEG, PNG ou WebP de até 4MB.');
+      return;
+    }
+    setUploadError('');
+    setUploadingImage(true);
+    try {
+      const res = await api.uploadProductImage(file);
+      targetSetter(prev => prev ? { ...prev, image_url: res.image_url } : prev);
+    } catch (err) {
+      setUploadError(err.message);
+    } finally {
+      setUploadingImage(false);
     }
   };
 
@@ -275,10 +296,23 @@ function AdminDashboard({ onLogout }) {
             </div>
 
             <button disabled={busy} onClick={() => { if (window.confirm('Importar produtos ausentes do catálogo original com estoque zero? Produtos existentes não serão alterados.')) mutate(() => api.importCatalog()); }}>Importar catálogo original (estoque zero)</button>
-            <form onSubmit={e => { e.preventDefault(); mutate(async () => { await api.createProduct({ ...newProduct, price: Number(newProduct.price), stock_quantity: 0 }); setNewProduct({ name: '', category: '', price: '', description: '' }); }); }}>
+            <form onSubmit={e => { e.preventDefault(); mutate(async () => { await api.createProduct({ ...newProduct, price: Number(newProduct.price), stock_quantity: 0 }); setNewProduct({ name: '', category: '', price: '', description: '', image_url: '' }); setUploadError(''); }); }}>
               <h3>Cadastrar produto com estoque zero</h3>
               {['name', 'category', 'price', 'description'].map((field, index) => <label key={field}>{['Nome', 'Categoria', 'Preço', 'Descrição'][index]}<input required={field !== 'description'} type={field === 'price' ? 'number' : 'text'} min={field === 'price' ? 0 : undefined} step={field === 'price' ? '0.01' : undefined} value={newProduct[field]} onChange={e => setNewProduct({ ...newProduct, [field]: e.target.value })} /></label>)}
-              <button disabled={busy}>Cadastrar</button>
+              <div className="form-group-image">
+                <label>Foto do Produto (JPEG, PNG, WebP até 4MB):
+                  <input type="file" accept="image/jpeg,image/png,image/webp" disabled={uploadingImage || busy} onChange={e => handleImageFileChange(e.target.files[0], setNewProduct)} />
+                </label>
+                {uploadingImage && <p className="upload-loading">Enviando imagem...</p>}
+                {uploadError && <p className="upload-error" role="alert">{uploadError}</p>}
+                {newProduct.image_url && (
+                  <div className="image-preview">
+                    <img src={newProduct.image_url} alt="Preview" style={{ width: 80, height: 80, objectFit: 'cover', borderRadius: 4 }} />
+                    <button type="button" onClick={() => setNewProduct({ ...newProduct, image_url: '' })}>Remover foto</button>
+                  </div>
+                )}
+              </div>
+              <button disabled={busy || uploadingImage}>Cadastrar</button>
             </form>
             <div className="products-grid">
               {filteredProducts.length === 0 ? (
@@ -330,6 +364,24 @@ function AdminDashboard({ onLogout }) {
                             onClick={() => mutate(() => api.toggleProduct(product.id))}
                           >
                             {product.is_active ? 'Ativo' : 'Inativo'}
+                          </button>
+                          <button
+                            type="button"
+                            className="edit-product-button"
+                            disabled={busy}
+                            onClick={() => {
+                              setEditingProduct({
+                                id: product.id,
+                                name: product.name,
+                                category: product.category,
+                                price: product.price,
+                                description: product.description || '',
+                                image_url: product.image_url || ''
+                              });
+                              setUploadError('');
+                            }}
+                          >
+                            Editar Detalhes
                           </button>
                         </div>
                       </div>
@@ -475,6 +527,68 @@ function AdminDashboard({ onLogout }) {
           </>
         )}
       </main>
+
+      {editingProduct && (
+        <div className="modal-backdrop">
+          <div className="modal">
+            <div className="modal-header">
+              <h2>Editar Produto #{editingProduct.id}</h2>
+              <button
+                className="close-button"
+                disabled={uploadingImage || busy} onClick={() => setEditingProduct(null)}
+                aria-label="Fechar modal"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="modal-content">
+              <form onSubmit={e => {
+                e.preventDefault();
+                mutate(async () => {
+                  await api.updateProduct(editingProduct.id, {
+                    name: editingProduct.name,
+                    category: editingProduct.category,
+                    price: Number(editingProduct.price),
+                    description: editingProduct.description,
+                    image_url: editingProduct.image_url
+                  });
+                  setEditingProduct(null);
+                });
+              }}>
+                <label>Nome:
+                  <input required type="text" value={editingProduct.name} onChange={e => setEditingProduct({ ...editingProduct, name: e.target.value })} />
+                </label>
+                <label>Categoria:
+                  <input required type="text" value={editingProduct.category} onChange={e => setEditingProduct({ ...editingProduct, category: e.target.value })} />
+                </label>
+                <label>Preço:
+                  <input required type="number" min="0" step="0.01" value={editingProduct.price} onChange={e => setEditingProduct({ ...editingProduct, price: e.target.value })} />
+                </label>
+                <label>Descrição:
+                  <textarea value={editingProduct.description} onChange={e => setEditingProduct({ ...editingProduct, description: e.target.value })} />
+                </label>
+                <div className="form-group-image">
+                  <label>Foto do Produto (JPEG, PNG, WebP até 4MB):
+                    <input type="file" accept="image/jpeg,image/png,image/webp" disabled={uploadingImage || busy} onChange={e => handleImageFileChange(e.target.files[0], setEditingProduct)} />
+                  </label>
+                  {uploadingImage && <p className="upload-loading">Enviando imagem...</p>}
+                  {uploadError && <p className="upload-error" role="alert">{uploadError}</p>}
+                  {editingProduct.image_url && (
+                    <div className="image-preview">
+                      <img src={editingProduct.image_url} alt="Preview" style={{ width: 80, height: 80, objectFit: 'cover', borderRadius: 4 }} />
+                      <button type="button" onClick={() => setEditingProduct({ ...editingProduct, image_url: '' })}>Remover foto</button>
+                    </div>
+                  )}
+                </div>
+                <div className="modal-actions">
+                  <button type="submit" className="button button-primary" disabled={busy || uploadingImage}>Salvar Alterações</button>
+                  <button type="button" className="button button-secondary" disabled={uploadingImage || busy} onClick={() => setEditingProduct(null)}>Cancelar</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showPixKeyModal && (
         <div className="modal-backdrop">

@@ -1,12 +1,18 @@
 const Product = require('../models/Product');
 const Order = require('../models/Order');
 exports.create = async (req, res) => {
+  if (!req.customer?.id) return res.status(401).json({ success: false, message: 'Entre com Google para finalizar o pedido' });
   const input = req.body;
   if (!input || typeof input.customer_name !== 'string' || !input.customer_name.trim() || input.customer_name.length > 120 || typeof input.customer_phone !== 'string' || !/^[+\d ()-]{8,30}$/.test(input.customer_phone) || typeof input.request_id !== 'string' || !/^[a-f0-9-]{36}$/i.test(input.request_id) || !Array.isArray(input.items) || !input.items.length || input.items.length > 100 || input.items.some(item => !item || !Number.isSafeInteger(item.product_id) || item.product_id <= 0 || !Number.isSafeInteger(item.quantity) || item.quantity <= 0 || item.quantity > 100000) || new Set(input.items.map(item => item.product_id)).size !== input.items.length) {
     return res.status(400).json({ success: false, message: 'Dados do pedido inválidos' });
   }
   try {
-    const order = await Order.create(input);
+    const payload = {
+      ...input,
+      customer_id: req.customer.id,
+      customer_email: req.customer.email
+    };
+    const order = await Order.create(payload);
     res.status(201).json({ success: true, order: { id: order.id, total_amount: order.total_amount, items: order.items } });
   } catch (error) {
     res.status(error.status || 503).json({ success: false, message: error.status === 409 ? error.message : 'Não foi possível registrar o pedido. Tente novamente.' });

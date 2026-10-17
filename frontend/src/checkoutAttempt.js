@@ -1,5 +1,5 @@
-export function createCheckoutAttempt() {
-  let pending = null;
+export function createCheckoutAttempt(initial = null) {
+  let pending = initial;
   return {
     get pending() { return pending; },
     begin(payload, items) {

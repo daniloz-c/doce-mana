@@ -7,6 +7,7 @@ function validate() {
   if (production || remote) {
     if (!process.env.SUPABASE_URL || !/^https:\/\//.test(process.env.SUPABASE_URL)) missing.push('SUPABASE_URL');
     if (!process.env.SUPABASE_SERVICE_ROLE_KEY) missing.push('SUPABASE_SERVICE_ROLE_KEY');
+    if (!process.env.SUPABASE_ANON_KEY) missing.push('SUPABASE_ANON_KEY');
   }
   if (production) {
     try {

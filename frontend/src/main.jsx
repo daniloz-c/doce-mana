@@ -76,15 +76,18 @@ function Icon({ name, size = 20 }) {
 }
 
 function App() {
+  const [savedCheckout] = useState(() => {
+    try { return JSON.parse(sessionStorage.getItem('doce-checkout') || 'null') || {}; } catch { return {}; }
+  });
   const [products, setProducts] = useState([]);
   const [catalogError, setCatalogError] = useState('');
   const [catalogLoading, setCatalogLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  const [customerName, setCustomerName] = useState('');
-  const [customerPhone, setCustomerPhone] = useState('');
-  const [requestId, setRequestId] = useState(() => crypto.randomUUID());
+  const [customerName, setCustomerName] = useState(savedCheckout.customerName || '');
+  const [customerPhone, setCustomerPhone] = useState(savedCheckout.customerPhone || '');
+  const [requestId, setRequestId] = useState(() => savedCheckout.requestId || crypto.randomUUID());
   const [receipt, setReceipt] = useState(null);
-  const attempt = useRef(createCheckoutAttempt());
+  const attempt = useRef(createCheckoutAttempt(savedCheckout.pending));
   const sending = useRef(false);
   const pending = attempt.current.pending;
   async function refreshProducts() {
@@ -105,12 +108,33 @@ function App() {
     window.addEventListener('focus', refreshProducts);
     return () => { clearInterval(timer); window.removeEventListener('focus', refreshProducts); };
   }, []);
+
+  useEffect(() => {
+    api.getCustomerSession().then(data => {
+      if (data && data.customer) {
+        setCustomerSession(data.customer);
+        if (data.customer.name && !customerName) setCustomerName(data.customer.name);
+      }
+    }).catch(() => {});
+  }, []);
   const [activeCategory, setActiveCategory] = useState('Todos');
-  const [cart, setCart] = useState({});
-  const [isCartOpen, setIsCartOpen] = useState(false);
+  const [cart, setCart] = useState(savedCheckout.cart || {});
+  const [isCartOpen, setIsCartOpen] = useState(() => new URLSearchParams(window.location.search).has('login'));
   const [orderSent, setOrderSent] = useState(false);
   const [showAdminLogin, setShowAdminLogin] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [customerSession, setCustomerSession] = useState(null);
+  const [showGoogleLogin, setShowGoogleLogin] = useState(false);
+
+  useEffect(() => {
+    try { sessionStorage.setItem('doce-checkout', JSON.stringify({ cart, customerName, customerPhone, requestId, pending })); } catch {}
+  }, [cart, customerName, customerPhone, requestId, pending]);
+
+  useEffect(() => {
+    const result = new URLSearchParams(window.location.search).get('login');
+    if (result === 'error') alert('Não foi possível entrar com Google. Tente novamente.');
+    if (result) window.history.replaceState(null, '', window.location.pathname);
+  }, []);
 
   function changeQuantity(productId, amount) {
     if (sending.current || attempt.current.pending) return;
@@ -157,6 +181,10 @@ function App() {
   );
 
   async function checkout() {
+    if (!customerSession) {
+      setShowGoogleLogin(true);
+      return;
+    }
     if (!attempt.current.pending && cartItems.length === 0) {
       alert('Seu carrinho está vazio. Adicione produtos para fazer um pedido.');
       return;
@@ -176,6 +204,7 @@ function App() {
       await refreshProducts();
     } catch (error) {
       alert(error.message);
+      if (error.status === 401) setCustomerSession(null);
       attempt.current.reject(error);
       if (!attempt.current.pending) { setRequestId(crypto.randomUUID()); await refreshProducts(); }
     } finally {
@@ -459,11 +488,31 @@ function App() {
                 <div className="cart-summary">
                   <div><span>Subtotal</span><strong>{formatPrice(cartTotal)}</strong></div>
                   <small>Combinar entrega pelo WhatsApp ♡</small>
+                  {customerSession ? (
+                    <div className="customer-logged-box">
+                      <p>Conectado como: <strong>{customerSession.name || customerSession.email}</strong></p>
+                      <button type="button" className="button button-text" disabled={submitting || !!pending} onClick={async () => { try { await api.logoutCustomer(); setCustomerSession(null); setRequestId(crypto.randomUUID()); } catch (error) { alert(error.message); } }}>Trocar conta</button>
+                    </div>
+                  ) : (
+                    <div className="customer-login-warning">
+                      <p>É necessário entrar com o Google para concluir o pedido.</p>
+                      <button type="button" className="button button-google" onClick={async () => {
+                        try {
+                          const res = await api.loginCustomer();
+                          if (res.url) window.location.href = res.url;
+                        } catch (e) {
+                          alert(e.message);
+                        }
+                      }}>
+                        Conectar com Google
+                      </button>
+                    </div>
+                  )}
                   <label>Nome<input value={customerName} disabled={submitting || !!pending} onChange={e => setCustomerName(e.target.value)} maxLength={120} /></label>
                   <label>Telefone<input type="tel" value={customerPhone} disabled={submitting || !!pending} onChange={e => setCustomerPhone(e.target.value)} maxLength={30} /></label>
-                  {pending && <p role="status">Tentativa pendente: itens e dados estão preservados. Reenvie para obter o resultado sem criar outro pedido. Não feche nem recarregue esta página.</p>}
+                  {pending && <p role="status">Tentativa pendente: itens e dados estão preservados. Reenvie para obter o resultado sem criar outro pedido. Entre novamente com a mesma conta se a sessão expirar.</p>}
                   <small>Registrar o pedido consome o estoque. Depois, envie a confirmação pelo WhatsApp.</small>
-                  <button type="button" disabled={submitting || (!pending && (!!catalogError || !customerName.trim() || !customerPhone.trim()))} className="button button-primary checkout-button" onClick={checkout}>
+                  <button type="button" disabled={submitting || (!pending && (!!catalogError || !customerSession || !customerName.trim() || !customerPhone.trim()))} className="button button-primary checkout-button" onClick={checkout}>
                     {pending ? 'Consultar / reenviar mesma tentativa' : 'Pedir pelo WhatsApp'} <Icon name="arrow" size={18} />
                   </button>
                   {orderSent && <p className="order-note" role="status">Seu pedido foi preparado para enviar. Se a nova aba não abriu, confira o bloqueador de pop-ups.</p>}
@@ -471,6 +520,37 @@ function App() {
               </>
             )}
           </aside>
+        </div>
+      )}
+
+      {showGoogleLogin && !customerSession && (
+        <div className="modal-backdrop" onClick={() => setShowGoogleLogin(false)}>
+          <div className="modal" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2>Identificação do Cliente</h2>
+              <button className="close-button" onClick={() => setShowGoogleLogin(false)}>✕</button>
+            </div>
+            <div className="modal-content">
+              <p>Para sua segurança e acompanhamento do pedido, é obrigatório conectar-se com o Google.</p>
+              <div className="modal-actions">
+                <button
+                  type="button"
+                  className="button button-google"
+                  onClick={async () => {
+                    try {
+                      const res = await api.loginCustomer();
+                      if (res.url) window.location.href = res.url;
+                    } catch (e) {
+                      alert(e.message);
+                    }
+                  }}
+                >
+                  Continuar com Google
+                </button>
+                <button type="button" className="button button-secondary" onClick={() => setShowGoogleLogin(false)}>Cancelar</button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 

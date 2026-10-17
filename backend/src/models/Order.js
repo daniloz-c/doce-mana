@@ -19,8 +19,11 @@ async function transaction(work) {
 const Order = {
   create(input) {
     return transaction(async () => {
-      const existing = await all('SELECT id FROM orders WHERE reservation_token = ?', [input.request_id]);
-      if (existing.length) return this.getById(existing[0].id);
+      const existing = await all('SELECT id, customer_id FROM orders WHERE reservation_token = ?', [input.request_id]);
+      if (existing.length) {
+        if (!input.customer_id || existing[0].customer_id !== input.customer_id) throw Object.assign(new Error('Token de pedido já utilizado por outro cliente'), { status: 409 });
+        return this.getById(existing[0].id);
+      }
       const items = [];
       for (const item of [...input.items].sort((a, b) => a.product_id - b.product_id)) {
         const updated = await run('UPDATE products SET stock_quantity = stock_quantity - ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND is_active = 1 AND stock_quantity >= ?', [item.quantity, item.product_id, item.quantity]);
@@ -29,7 +32,7 @@ const Order = {
         items.push({ ...item, price: product.price });
       }
       const total = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
-      const inserted = await run('INSERT INTO orders (customer_name, customer_phone, total_amount, reservation_token) VALUES (?, ?, ?, ?)', [input.customer_name, input.customer_phone, total, input.request_id]);
+      const inserted = await run('INSERT INTO orders (customer_id, customer_email, customer_name, customer_phone, total_amount, reservation_token) VALUES (?, ?, ?, ?, ?, ?)', [input.customer_id || null, input.customer_email || null, input.customer_name, input.customer_phone, total, input.request_id]);
       for (const item of items) await run('INSERT INTO order_items (order_id, product_id, quantity, price) VALUES (?, ?, ?, ?)', [inserted.lastID, item.product_id, item.quantity, item.price]);
       return this.getById(inserted.lastID);
     });
