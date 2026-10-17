@@ -20,6 +20,17 @@
   --serif: 'Playfair Display', Georgia, serif;
 }
 
+.customer-auth-backdrop { position: fixed; inset: 0; z-index: 200; display: grid; place-items: center; padding: 20px; background: rgba(72, 42, 45, .48); overflow-y: auto; }
+.customer-auth { width: min(100%, 460px); max-height: calc(100dvh - 40px); overflow-y: auto; display: flex; flex-direction: column; align-items: center; gap: 20px; padding: 36px 28px; border: 1px solid var(--line); border-radius: 24px; background: var(--cream); color: var(--ink); text-align: center; box-shadow: 0 24px 80px #482a2d33; }
+.customer-auth .brand-mark { background: var(--pink); color: var(--berry-dark); }
+.customer-auth h2 { margin: 0; font: 600 30px/1.2 var(--serif); color: var(--berry-dark); }
+.customer-auth p { margin: 0; line-height: 1.6; }
+.customer-auth small { color: var(--muted); line-height: 1.6; }
+.customer-google-button { width: 100%; display: flex; justify-content: center; align-items: center; gap: 12px; min-height: 44px; padding: 12px 16px; background: white; border: 1px solid #747775; border-radius: 4px; color: #1f1f1f; font-weight: 500; cursor: pointer; }
+.customer-google-button:hover { background: #f2f2f2; }
+button:disabled { cursor: not-allowed; opacity: .6; }
+.checkout-error { color: var(--berry-dark); padding: 12px; background: var(--pink); border-radius: 8px; }
+
 * { box-sizing: border-box; }
 html { scroll-behavior: smooth; scroll-padding-top: 90px; }
 body { margin: 0; min-width: 320px; }

@@ -1,7 +1,26 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { api } from './api.js';
-import { createCheckoutAttempt } from './checkoutAttempt.js';
+import { createCheckoutAttempt, resumeCheckout, validCustomer } from './checkoutAttempt.js';
+
+test('retorno OAuth exige intenção local recente e não inicia pedido', () => {
+  const saved = { cart: { 1: 2 }, loginStartedAt: 1000 };
+  assert.equal(resumeCheckout(saved, 'success', 2000), true);
+  assert.equal(resumeCheckout(saved, 'error', 2000), true);
+  assert.equal(resumeCheckout({}, 'success', 2000), false);
+  assert.equal(resumeCheckout(saved, 'success', 601000), false);
+  assert.equal(resumeCheckout(saved, 'success', 999), false);
+  assert.equal(resumeCheckout(saved, 'forged', 2000), false);
+  assert.deepEqual(saved.cart, { 1: 2 });
+  assert.equal(createCheckoutAttempt().pending, null);
+});
+
+test('nome e telefone são obrigatórios antes de confirmar', () => {
+  assert.equal(validCustomer('Maria', '(47) 99999-9999'), true);
+  for (const [name, phone] of [[' ', '47999999999'], ['Maria', ''], ['Maria', 'abcdefgh'], ['Maria', '--------'], ['Maria', '123']]) {
+    assert.equal(validCustomer(name, phone), false);
+  }
+});
 
 test('resposta perdida preserva snapshot e chave até resultado definitivo', () => {
   const attempt = createCheckoutAttempt();
