@@ -110,5 +110,11 @@ test('métodos de autenticação de cliente e upload de imagem', async () => {
     assert.equal(uploadRes.image_url, 'https://img.test/pic.png');
     assert.equal(calls[3].url, '/api/admin/upload');
     assert.equal(calls[3].method, 'POST');
+    await api.loginCustomerWithPassword('customer@example.com', 'test-password');
+    assert.equal(calls[4].url, '/api/customer/password-login');
+    assert.equal(calls[4].method, 'POST');
+    assert.equal(calls[4].credentials, 'include');
+    assert.deepEqual(JSON.parse(calls[4].body), { email: 'customer@example.com', password: 'test-password' });
+    assert.ok(calls.every(call => call.url !== '/api/orders'));
   } finally { globalThis.fetch = original; }
 });

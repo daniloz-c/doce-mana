@@ -22,6 +22,13 @@
 
 .customer-auth-backdrop { position: fixed; inset: 0; z-index: 200; display: grid; place-items: center; padding: 20px; background: rgba(72, 42, 45, .48); overflow-y: auto; }
 .customer-auth { width: min(100%, 460px); max-height: calc(100dvh - 40px); overflow-y: auto; display: flex; flex-direction: column; align-items: center; gap: 20px; padding: 36px 28px; border: 1px solid var(--line); border-radius: 24px; background: var(--cream); color: var(--ink); text-align: center; box-shadow: 0 24px 80px #482a2d33; }
+.customer-fields { display: grid; gap: 16px; width: 100%; text-align: left; }
+.customer-fields label { display: grid; gap: 7px; color: var(--berry-dark); font-size: 14px; font-weight: 600; }
+.customer-fields input { width: 100%; min-width: 0; padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; background: white; color: var(--ink); font: inherit; }
+.customer-fields input:focus-visible { outline: 2px solid var(--berry); outline-offset: 2px; }
+.customer-fields input:disabled { background: var(--pink); }
+.customer-auth-separator { display: flex; align-items: center; gap: 12px; width: 100%; color: var(--muted); font-size: 12px; }
+.customer-auth-separator::before, .customer-auth-separator::after { content: ''; flex: 1; height: 1px; background: var(--line); }
 .customer-auth .brand-mark { background: var(--pink); color: var(--berry-dark); }
 .customer-auth h2 { margin: 0; font: 600 30px/1.2 var(--serif); color: var(--berry-dark); }
 .customer-auth p { margin: 0; line-height: 1.6; }

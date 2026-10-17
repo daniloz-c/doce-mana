@@ -39,7 +39,13 @@ let mockUser = {
   user_metadata: { full_name: 'Cliente Google' }
 };
 
+let passwordCalls = 0;
+const emailUser = { id: 'email-customer', email: 'email@example.com', app_metadata: { provider: 'email' }, identities: [{ provider: 'email' }], user_metadata: {} };
 const mockAuth = {
+  signInWithPassword: async ({ email, password }) => {
+    passwordCalls++;
+    return email === emailUser.email && password === 'valid-password' ? { data: { session: { access_token: 'email-token', expires_in: 3600 } } } : { data: {}, error: new Error('User not found') };
+  },
   signInWithOAuth: async ({ provider, options }) => {
     options.redirectTo;
     return { data: { url: 'https://database.example.test/auth/v1/authorize?provider=google' }, error: null };
@@ -51,6 +57,7 @@ const mockAuth = {
     return { data: {}, error: new Error('Invalid code') };
   },
   getUser: async (token) => {
+    if (token === 'email-token') return { data: { user: emailUser }, error: null };
     if (token === 'google-access-token') {
       return { data: { user: mockUser }, error: null };
     }
@@ -228,7 +235,7 @@ test('Criação de pedidos exige cliente autenticado via Google', async () => {
   });
   assert.equal(unauthRes.status, 401);
   const data = await unauthRes.json();
-  assert.match(data.message, /Entre com Google/);
+  assert.match(data.message, /Faça login/);
 });
 
 test('Pedido usa identidade do servidor e rejeita sessão admin ou provider diferente', async () => {
@@ -261,6 +268,49 @@ test('Upload rejeita excesso de tamanho e MIME divergente', async () => {
     const response = await fetch(`${base}/api/admin/upload`, { method: 'POST', headers: { origin: process.env.APP_ORIGIN, cookie: adminCookie() }, body });
     assert.equal(response.status, 400);
   }
+});
+
+test('Senha: validação, CSRF, sessão cliente, isolamento admin e limite', async () => {
+  const send = (body, origin = process.env.APP_ORIGIN) => fetch(`${base}/api/customer/password-login`, { method: 'POST', headers: { origin, 'content-type': 'application/json' }, body: JSON.stringify(body) });
+  const credentials = { email: emailUser.email, password: 'valid-password' };
+  assert.equal((await send(credentials, 'https://evil.test')).status, 403);
+  assert.equal(passwordCalls, 0);
+  for (const body of [{ email: {}, password: 'x' }, { email: 'bad', password: 'x' }, { email: emailUser.email, password: '' }]) assert.equal((await send(body)).status, 400);
+  assert.equal(passwordCalls, 0);
+  const wrong = await send({ ...credentials, password: 'wrong' });
+  const unknown = await send({ ...credentials, email: 'unknown@example.com' });
+  assert.equal(wrong.status, 401);
+  assert.equal(unknown.status, 401);
+  assert.deepEqual(await wrong.json(), await unknown.json());
+  assert.equal(wrong.headers.get('set-cookie'), null);
+  const original = models.Order.create;
+  let orders = 0;
+  models.Order.create = async payload => { orders++; assert.equal(payload.customer_id, emailUser.id); return { id: 2, items: [], total_amount: 1 }; };
+  try {
+    const login = await send(credentials);
+    assert.equal(login.status, 200);
+    const data = await login.json();
+    assert.equal(data.customer.id, emailUser.id);
+    assert.equal(data.access_token, undefined);
+    const header = login.headers.get('set-cookie');
+    for (const flag of ['HttpOnly', 'Secure', 'SameSite=Lax', 'Path=/']) assert.ok(header.includes(flag));
+    const cookie = header.split(';')[0];
+    const session = await fetch(`${base}/api/customer/session`, { headers: { cookie } });
+    assert.equal((await session.json()).customer.id, emailUser.id);
+    assert.equal(orders, 0);
+    assert.equal((await fetch(`${base}/api/admin/dashboard`, { headers: { cookie } })).status, 401);
+    assert.equal((await fetch(`${base}/api/admin/dashboard`, { headers: { cookie: '__Host-doce_admin=email-token' } })).status, 401);
+    const order = await fetch(`${base}/api/orders`, { method: 'POST', headers: { cookie, origin: process.env.APP_ORIGIN, 'content-type': 'application/json' }, body: JSON.stringify({ request_id: '8093128b-b830-4e3d-bbda-fb6fc9a32c45', customer_name: 'Cliente', customer_phone: '47999999999', items: [{ product_id: 1, quantity: 1 }] }) });
+    assert.equal(order.status, 201);
+    assert.equal(orders, 1);
+    const logout = await fetch(`${base}/api/customer/logout`, { method: 'POST', headers: { cookie, origin: process.env.APP_ORIGIN } });
+    assert.equal(logout.status, 200);
+    assert.match(logout.headers.get('set-cookie'), /__Host-doce_customer=;/);
+  } finally { models.Order.create = original; }
+  for (let i = 0; i < 4; i++) await send({ ...credentials, password: 'wrong' });
+  const limited = await send(credentials);
+  assert.equal(limited.status, 429);
+  assert.ok(Number(limited.headers.get('retry-after')) > 0);
 });
 
 test('Callback inválido ou adulterado redireciona com erro sem open-redirect', async () => {

@@ -1,4 +1,4 @@
-module.exports = function createOrderLimiter({ limit = 10, windowMs = 60000, maxKeys = 10000, now = Date.now } = {}) {
+module.exports = function createOrderLimiter({ limit = 10, windowMs = 60000, maxKeys = 10000, now = Date.now, message = 'Muitas tentativas. Aguarde e reenvie o mesmo pedido.' } = {}) {
   const clients = new Map();
   return (req, res, next) => {
     const time = now();
@@ -11,7 +11,7 @@ module.exports = function createOrderLimiter({ limit = 10, windowMs = 60000, max
     }
     if (!entry || entry.count >= limit) {
       res.set('Retry-After', String(Math.max(1, Math.ceil(((entry?.until || time + windowMs) - time) / 1000))));
-      return res.status(429).json({ success: false, message: 'Muitas tentativas. Aguarde e reenvie o mesmo pedido.' });
+      return res.status(429).json({ success: false, message });
     }
     entry.count++;
     next();

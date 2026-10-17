@@ -191,6 +191,30 @@ function App() {
     0,
   );
 
+  async function passwordLogin(event) {
+    event.preventDefault();
+    if (loginSending.current) return;
+    const form = event.currentTarget;
+    const data = new FormData(form);
+    loginSending.current = true;
+    setLoginBusy(true);
+    setCheckoutError('');
+    try {
+      const result = await api.loginCustomerWithPassword(data.get('email'), data.get('password'));
+      setCustomerSession(result.customer);
+      if (!customerName && result.customer.name) setCustomerName(result.customer.name);
+      form.reset();
+      setShowGoogleLogin(false);
+      setIsCartOpen(true);
+    } catch (error) {
+      setCheckoutError(error.message);
+    } finally {
+      form.elements.password.value = '';
+      loginSending.current = false;
+      setLoginBusy(false);
+    }
+  }
+
   async function loginCustomer() {
     if (loginSending.current) return;
     loginSending.current = true;
@@ -528,13 +552,15 @@ function App() {
                       <p>Conectado como: <strong>{customerSession.name || customerSession.email}</strong></p>
                       <button type="button" className="button button-text" disabled={submitting || !!pending} onClick={async () => { try { await api.logoutCustomer(); setCustomerSession(null); setRequestId(crypto.randomUUID()); } catch (error) { alert(error.message); } }}>Trocar conta</button>
                     </div>
-                  ) : <p>Ao finalizar, entre com Google. Seus doces continuam na sacola.</p>}
-                  <label>Nome<input value={customerName} disabled={submitting || !!pending} onChange={e => setCustomerName(e.target.value)} maxLength={120} /></label>
-                  <label>Telefone<input type="tel" value={customerPhone} disabled={submitting || !!pending} onChange={e => setCustomerPhone(e.target.value)} maxLength={30} /></label>
+                  ) : <p>Faça login para finalizar. Seus doces continuam na sacola.</p>}
+                  {customerSession && <div className="customer-fields">
+                    <label>Nome<input autoComplete="name" value={customerName} disabled={submitting || !!pending} onChange={e => setCustomerName(e.target.value)} maxLength={120} required /></label>
+                    <label>Telefone<input type="tel" autoComplete="tel" placeholder="(47) 99999-9999" value={customerPhone} disabled={submitting || !!pending} onChange={e => setCustomerPhone(e.target.value)} maxLength={30} required /></label>
+                  </div>}
                   {pending && <p role="status">Tentativa pendente: itens e dados estão preservados. Reenvie para obter o resultado sem criar outro pedido. Entre novamente com a mesma conta se a sessão expirar.</p>}
                   <small>Registrar o pedido consome o estoque. Depois, envie a confirmação pelo WhatsApp.</small>
                   <button type="button" disabled={submitting || sessionLoading || loginBusy || (!pending && (catalogLoading || !!catalogError || !cartItems.length))} className="button button-primary checkout-button" onClick={checkout}>
-                    {sessionLoading ? 'Verificando sessão...' : !customerSession ? 'Finalizar pedido' : pending ? 'Consultar / reenviar mesma tentativa' : 'Confirmar pedido para WhatsApp'} <Icon name="arrow" size={18} />
+                    {sessionLoading ? 'Verificando sessão...' : !customerSession ? 'Faça login para continuar' : pending ? 'Consultar / reenviar mesma tentativa' : 'Confirmar pedido para WhatsApp'} <Icon name="arrow" size={18} />
                   </button>
                   {orderSent && <p className="order-note" role="status">Seu pedido foi preparado para enviar. Se a nova aba não abriu, confira o bloqueador de pop-ups.</p>}
                 </div>
@@ -549,7 +575,7 @@ function App() {
           <section className="customer-auth" role="dialog" aria-modal="true" aria-labelledby="customer-auth-title" onKeyDown={event => {
             if (event.key === 'Escape' && !loginBusy) setShowGoogleLogin(false);
             if (event.key === 'Tab') {
-              const buttons = [...event.currentTarget.querySelectorAll('button:not(:disabled)')];
+              const buttons = [...event.currentTarget.querySelectorAll('button:not(:disabled), input:not(:disabled)')];
               if (!buttons.length) { event.preventDefault(); return; }
               const first = buttons[0];
               const last = buttons[buttons.length - 1];
@@ -561,7 +587,13 @@ function App() {
             <span className="eyebrow">falta pouco para adoçar seu dia</span>
             <h2 id="customer-auth-title">Seus doces estão te esperando</h2>
             <p>Entre para continuar seu pedido na Doce Maná. Sua sacola será preservada enquanto você se conecta.</p>
-            <button autoFocus type="button" className="customer-google-button" disabled={loginBusy} onClick={loginCustomer}>
+            <form className="customer-fields customer-password-form" onSubmit={passwordLogin}>
+              <label>Email<input autoFocus name="email" type="email" autoComplete="username" maxLength={254} required disabled={loginBusy} /></label>
+              <label>Senha<input name="password" type="password" autoComplete="current-password" maxLength={1024} required disabled={loginBusy} /></label>
+              <button type="submit" className="button button-primary" disabled={loginBusy}>{loginBusy ? 'Entrando...' : 'Entrar com email e senha'}</button>
+            </form>
+            <div className="customer-auth-separator">ou faça login com o google</div>
+            <button type="button" className="customer-google-button" disabled={loginBusy} onClick={loginCustomer}>
               <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true">
                 <path fill="#4285F4" d="M21.6 12.23c0-.71-.06-1.39-.18-2.05H12v3.88h5.38a4.6 4.6 0 0 1-2 3.02v2.51h3.24c1.9-1.75 2.98-4.33 2.98-7.36Z" />
                 <path fill="#34A853" d="M12 22c2.7 0 4.96-.9 6.62-2.41l-3.24-2.51c-.9.6-2.04.96-3.38.96-2.6 0-4.8-1.76-5.59-4.12H3.07v2.59A10 10 0 0 0 12 22Z" />

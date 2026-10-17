@@ -17,6 +17,7 @@ app.post('/api/orders', require('./auth').csrf, require('./customerAuth').requir
 app.get('/api/customer/callback', require('./customerAuth').callback);
 app.get('/api/customer/session', require('./customerAuth').session);
 app.post('/api/customer/login', require('./customerAuth').login);
+app.post('/api/customer/password-login', require('./orderLimiter')({ limit: 10, windowMs: 600000, message: 'Muitas tentativas de login. Aguarde antes de tentar novamente.' }), require('./customerAuth').passwordLogin);
 app.post('/api/customer/logout', require('./customerAuth').logout);
 app.use('/api/products', require('./routes/productRoutes'));
 app.use('/api/admin', require('./routes/adminRoutes'));
