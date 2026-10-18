@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { createCheckoutAttempt, resumeCheckout, shouldResumeCheckout, saveCheckoutReceipt } from './checkoutAttempt';
+import ProductDetails from './components/ProductDetails';
+import { productIdFromUrl, productUrl, shareProduct } from './productShare';
 import AdminLogin from './components/AdminLogin';
 import AdminDashboard from './components/AdminDashboard';
 import { api } from './api';
@@ -125,7 +127,43 @@ useEffect(() => {
      }).catch(() => { setCheckoutError('Não foi possível verificar sua sessão. Tente entrar novamente.'); }).finally(() => setSessionLoading(false));
 
    }, []);
-   const [activeCategory, setActiveCategory] = useState('Todos');
+    const [selectedProductId, setSelectedProductId] = useState(() => productIdFromUrl(window.location.href));
+    const [shareFeedback, setShareFeedback] = useState(null);
+    const selectedProduct = products.find(product => product.id === selectedProductId);
+
+    useEffect(() => {
+      const syncProduct = () => { setSelectedProductId(productIdFromUrl(window.location.href)); setShareFeedback(null); };
+      window.addEventListener('popstate', syncProduct);
+      return () => window.removeEventListener('popstate', syncProduct);
+    }, []);
+
+    function openProduct(product) {
+      const url = new URL(window.location.href);
+      url.searchParams.set('produto', String(product.id));
+      window.history.pushState(null, '', `${url.pathname}${url.search}${url.hash}`);
+      setSelectedProductId(product.id);
+      setShareFeedback(null);
+    }
+
+    function closeProduct() {
+      const url = new URL(window.location.href);
+      url.searchParams.delete('produto');
+      window.history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`);
+      setSelectedProductId(null);
+      setShareFeedback(null);
+    }
+
+    async function handleShareProduct(product) {
+      const url = productUrl(window.location.href, product.id);
+      try {
+        const message = await shareProduct(product, window.location.href, navigator);
+        setShareFeedback(message ? { id: product.id, message, url } : null);
+      } catch {
+        setShareFeedback({ id: product.id, message: 'Copie o link abaixo para compartilhar.', url });
+      }
+    }
+
+    const [activeCategory, setActiveCategory] = useState('Todos');
   const [cart, setCart] = useState(savedCheckout.cart || {});
   const [isCartOpen, setIsCartOpen] = useState(() => resumeCheckout(savedCheckout, new URLSearchParams(window.location.search).get('login')));
   const [orderSent, setOrderSent] = useState(false);
@@ -450,7 +488,7 @@ useEffect(() => {
                 </div>
                 <div className="product-details">
                   <span className="product-category">{product.category}</span>
-                  <h3>{product.name}</h3>
+                  <h3><button type="button" className="product-title-link" onClick={() => openProduct(product)}>{product.name}</button></h3>
                   <p>{product.description}</p>
                   <div className="product-footer">
                     <strong>{formatPrice(product.price)}</strong>
@@ -463,6 +501,16 @@ useEffect(() => {
                       <span>+</span>
                     </button>
                   </div>
+                  <div className="product-share-actions">
+                    <button type="button" className="add-link" onClick={() => openProduct(product)}>Ver detalhes</button>
+                    <button type="button" className="add-link" onClick={() => handleShareProduct(product)} aria-label={`Compartilhar ${product.name}`}>Compartilhar</button>
+                  </div>
+                  {shareFeedback?.id === product.id && !selectedProductId && (
+                    <div className="product-share-feedback">
+                      <p role="status">{shareFeedback.message}</p>
+                      <input aria-label={`Link de ${product.name}`} readOnly value={shareFeedback.url} onFocus={event => event.target.select()} />
+                    </div>
+                  )}
                 </div>
               </article>
             ))}
@@ -506,6 +554,20 @@ useEffect(() => {
           <span><Icon name="bag" size={19} /> Minha sacola · {Object.keys(cart).length} {Object.keys(cart).length === 1 ? 'item' : 'itens'}</span>
           <strong>{formatPrice(cartTotal)}</strong>
         </button>
+      )}
+
+      {selectedProductId !== null && (
+        <ProductDetails
+          product={selectedProduct}
+          loading={catalogLoading}
+          error={catalogError || 'Este produto não está disponível no momento.'}
+          onClose={closeProduct}
+          onAdd={product => changeQuantity(product.id, 1)}
+          onShare={handleShareProduct}
+          addingDisabled={submitting || !!pending || !selectedProduct || (cart[selectedProductId] || 0) >= selectedProduct.stock_quantity}
+          quantity={cart[selectedProductId] || 0}
+          shareFeedback={shareFeedback?.id === selectedProductId ? shareFeedback : null}
+        />
       )}
 
       {isCartOpen && (

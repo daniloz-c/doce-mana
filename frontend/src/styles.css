@@ -38,6 +38,21 @@
 button:disabled { cursor: not-allowed; opacity: .6; }
 .checkout-error { color: var(--berry-dark); padding: 12px; background: var(--pink); border-radius: 8px; }
 
+.product-title-link { padding: 0; border: 0; background: transparent; font: inherit; text-align: left; cursor: pointer; }
+.product-title-link:hover { color: var(--berry); }
+.product-share-actions { display: flex; justify-content: space-between; gap: 12px; margin-top: 16px; }
+.product-share-feedback { width: 100%; font-size: 13px; overflow-wrap: anywhere; }
+.product-share-feedback input { width: 100%; min-width: 0; padding: 10px; border: 1px solid var(--line); border-radius: 8px; font: inherit; }
+.product-dialog { width: min(92vw, 520px); max-height: 90dvh; padding: 0; border: 1px solid var(--line); border-radius: 20px; background: var(--cream); color: var(--ink); }
+.product-dialog::backdrop { background: rgba(72, 42, 45, .48); }
+.product-dialog-content { padding: 24px; }
+.product-dialog-content > .icon-button { float: right; }
+.product-dialog-content > .icon-button svg { width: 20px; height: 20px; }
+.product-dialog h2 { padding-right: 45px; font-family: var(--serif); }
+.product-dialog p { line-height: 1.6; }
+.product-dialog-image { width: 100%; max-height: 280px; object-fit: cover; border-radius: 12px; margin-bottom: 20px; }
+.product-dialog-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 20px; }
+
 * { box-sizing: border-box; }
 html { scroll-behavior: smooth; scroll-padding-top: 90px; }
 body { margin: 0; min-width: 320px; }

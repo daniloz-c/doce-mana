@@ -1,7 +1,36 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { api } from './api.js';
+import { productIdFromUrl, productUrl, shareProduct } from './productShare.js';
 import { createCheckoutAttempt, resumeCheckout, shouldResumeCheckout, saveCheckoutReceipt } from './checkoutAttempt.js';
+
+test('link individual mantém origem e remove parâmetros privados do checkout', () => {
+  const url = productUrl('https://shop.example.test/?login=success&code=private#sacola', 7);
+  assert.equal(url, 'https://shop.example.test/?produto=7');
+  assert.equal(productIdFromUrl(url), 7);
+  assert.equal(productUrl('http://localhost:5173/', 2), 'http://localhost:5173/?produto=2');
+  for (const value of ['', '0', '-1', 'abc', '1.5', '9007199254740992']) {
+    assert.equal(productIdFromUrl(`https://shop.example.test/?produto=${value}`), null);
+  }
+  assert.throws(() => productUrl('https://shop.example.test/', 0), /Produto inválido/);
+});
+
+test('compartilhamento nativo e cópia usam o link individual sem abrir checkout', async () => {
+  const product = { id: 7, name: 'Brownie' };
+  const href = 'https://shop.example.test/';
+  const calls = [];
+  assert.equal(await shareProduct(product, href, { share: async data => calls.push(data) }), 'Compartilhamento concluído.');
+  assert.deepEqual(calls, [{ title: 'Brownie', text: 'Confira Brownie na Doce Maná', url: `${href}?produto=7` }]);
+  const clipboard = { writeText: async url => calls.push(url) };
+  assert.equal(await shareProduct(product, href, { clipboard }), 'Link copiado!');
+  assert.equal(calls[1], `${href}?produto=7`);
+  assert.equal(await shareProduct(product, href, { share: async () => { throw new Error('indisponível'); }, clipboard }), 'Link copiado!');
+  const count = calls.length;
+  assert.equal(await shareProduct(product, href, { share: async () => { throw Object.assign(new Error('cancelado'), { name: 'AbortError' }); }, clipboard }), '');
+  assert.equal(calls.length, count);
+  await assert.rejects(shareProduct(product, href, {}), /Copie o link/);
+  await assert.rejects(shareProduct(product, href, { clipboard: { writeText: async () => { throw new Error('bloqueado'); } } }), /bloqueado/);
+});
 
 test('retorno OAuth exige intenção local recente e não inicia pedido', () => {
   const saved = { cart: { 1: 2 }, loginStartedAt: 1000 };
@@ -76,6 +105,70 @@ test('resposta perdida preserva snapshot e chave até resultado definitivo', () 
     attempt.reject({ status });
     assert.equal(attempt.pending, null);
   }
+});
+
+test('pedido sem telefone mantém a chave após 503 e navega somente depois do reenvio confirmado', async () => {
+  const originalFetch = globalThis.fetch;
+  const originalLog = console.error;
+  const attempt = createCheckoutAttempt();
+  const payload = { request_id: '12345678-1234-1234-1234-123456789abc', items: [{ product_id: 1, quantity: 2 }] };
+  const snapshot = attempt.begin(payload, [{ id: 1, name: 'Brownie', quantity: 2, price: 5 }]);
+  const calls = [];
+  const events = [];
+  const order = { id: 42, total_amount: 10, items: [{ name: 'Brownie', quantity: 2, price: 5 }] };
+  console.error = () => {};
+  try {
+    globalThis.fetch = async (url, options) => {
+      assert.equal(url, '/api/orders');
+      assert.equal(options.credentials, 'include');
+      calls.push(JSON.parse(options.body));
+      return new Response(JSON.stringify(calls.length === 1
+        ? { success: false, message: 'Não foi possível registrar o pedido. Tente novamente.' }
+        : { success: true, order }), { status: calls.length === 1 ? 503 : 201, headers: { 'content-type': 'application/json' } });
+    };
+    await assert.rejects(api.createOrder(snapshot.payload), error => {
+      assert.equal(error.status, 503);
+      attempt.reject(error);
+      return true;
+    });
+    assert.equal(attempt.pending, snapshot);
+    assert.deepEqual(events, []);
+    const retry = attempt.begin({ request_id: 'não-usar', items: [] }, []);
+    const response = await api.createOrder(retry.payload);
+    let saved;
+    saveCheckoutReceipt(response.order, { name: 'Cliente', email: 'cliente@example.test' }, retry.items, 'next', {
+      setItem(key, value) { saved = JSON.parse(value); events.push('saved'); }
+    }, url => {
+      assert.equal(url, saved.receipt.url);
+      events.push('navigate');
+    }, () => { attempt.finish(); events.push('finish'); });
+    assert.deepEqual(calls, [payload, payload]);
+    assert.equal(Object.hasOwn(calls[0], 'customer_phone'), false);
+    assert.equal(attempt.pending, null);
+    assert.equal(saved.checkoutIntent, false);
+    assert.deepEqual(events, ['saved', 'finish', 'navigate']);
+  } finally { globalThis.fetch = originalFetch; console.error = originalLog; }
+});
+
+test('erro definitivo de estoque libera tentativa e permite novo pedido', async () => {
+  const originalFetch = globalThis.fetch;
+  const originalLog = console.error;
+  const attempt = createCheckoutAttempt();
+  attempt.begin({ request_id: 'original', items: [{ product_id: 1, quantity: 2 }] }, []);
+  console.error = () => {};
+  try {
+    globalThis.fetch = async () => new Response(JSON.stringify({ success: false, message: 'Estoque insuficiente. Atualize a sacola.' }), {
+      status: 409, headers: { 'content-type': 'application/json' }
+    });
+    await assert.rejects(api.createOrder(attempt.pending.payload), error => {
+      assert.equal(error.status, 409);
+      assert.match(error.message, /Estoque insuficiente/);
+      attempt.reject(error);
+      return true;
+    });
+    assert.equal(attempt.pending, null);
+    assert.equal(attempt.begin({ request_id: 'nova', items: [{ product_id: 1, quantity: 1 }] }, []).payload.request_id, 'nova');
+  } finally { globalThis.fetch = originalFetch; console.error = originalLog; }
 });
 
 test('importação explícita, ajuste com comparação e pedido usam a API', async () => {
