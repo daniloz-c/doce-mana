@@ -45,6 +45,12 @@ test('catálogo explícito, estoque, concorrência, rollback e cancelamento', as
     assert.equal((await Order.getAll()).length, 1);
     await Product.delete(product.id);
     await assert.rejects(Order.create(input()), { status: 409 });
+    const inactive = await Product.create({ name: 'Bolo de cenoura inativo', category: 'Bolos', price: 8, stock_quantity: 5, is_active: 0 });
+    assert.equal((await Product.getById(inactive.id)).is_active, 0);
+    assert.equal((await Product.getAll()).some(item => item.id === inactive.id), false);
+    const active = await Product.create({ name: 'Bolo de cenoura ativo', category: 'Bolos', price: 8, stock_quantity: 1 });
+    assert.equal((await Product.getById(active.id)).is_active, 1);
+    assert.equal((await Product.getAll()).some(item => item.id === active.id), true);
   } finally { await new Promise(resolve => db.close(resolve)); }
 });
 test('validação rejeita quantidades inválidas e itens repetidos antes da persistência', async () => {

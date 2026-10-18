@@ -615,3 +615,595 @@ button.button-primary:disabled {
     text-align: center;
   }
 }
+
+.admin-dashboard {
+  --admin-muted: #705c59;
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  grid-template-rows: auto 1fr;
+  min-height: 100vh;
+  padding: 0;
+  background: linear-gradient(to right, #fff 220px, var(--cream) 220px);
+  color: var(--ink);
+  font-family: 'DM Sans', sans-serif;
+  line-height: 1.5;
+}
+
+.admin-dashboard .admin-header {
+  grid-column: 1;
+  grid-row: 1;
+  position: sticky;
+  top: 0;
+  align-self: start;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 16px;
+  min-height: 140px;
+  max-width: none;
+  margin: 0;
+  padding: 24px 20px;
+  border: 0;
+  background: #fff;
+}
+
+.admin-dashboard .admin-header h1 {
+  margin: 0;
+  font-family: var(--serif);
+  font-size: 26px;
+  color: var(--berry);
+}
+
+.admin-dashboard .admin-header p {
+  margin: 4px 0 0;
+  color: var(--admin-muted);
+  font-size: 13px;
+}
+
+.admin-dashboard .admin-nav {
+  grid-column: 1;
+  grid-row: 2;
+  position: sticky;
+  top: 160px;
+  align-self: start;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: none;
+  max-height: calc(100vh - 160px);
+  overflow-y: auto;
+  margin: 0;
+  padding: 16px;
+}
+
+.admin-dashboard .admin-nav .nav-item {
+  flex: none;
+  width: 100%;
+  padding: 12px 16px;
+  border-color: transparent;
+  border-radius: 10px;
+  text-align: left;
+}
+
+.admin-dashboard .admin-nav .nav-item.active {
+  background: var(--berry);
+  color: #fff;
+}
+
+.admin-dashboard .admin-content {
+  grid-column: 2;
+  grid-row: 1 / 3;
+  min-width: 0;
+  width: 100%;
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 36px clamp(20px, 3vw, 48px);
+}
+
+.admin-dashboard :is(button, input:not([type='checkbox']):not([type='radio']), select, summary) {
+  min-height: 44px;
+  font: inherit;
+}
+
+.admin-dashboard button {
+  cursor: pointer;
+}
+
+.admin-dashboard :is(button, a, input, select, textarea, summary):focus-visible {
+  outline: 3px solid var(--berry);
+  outline-offset: 3px;
+}
+
+.admin-dashboard :is(button, input, select, textarea):disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.admin-dashboard .admin-page-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.admin-dashboard .admin-page-heading h2 {
+  margin: 0;
+  font-size: clamp(24px, 3vw, 32px);
+  letter-spacing: -0.03em;
+}
+
+.admin-dashboard .admin-page-heading p {
+  margin: 6px 0 0;
+  color: var(--admin-muted);
+  font-size: 14px;
+}
+
+.admin-dashboard :is(.admin-primary, .admin-secondary, .admin-product-row button, .admin-more-actions button) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-width: 44px;
+  padding: 10px 16px;
+  border: 1px solid #d9c7c1;
+  border-radius: 8px;
+  background: #fff;
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.admin-dashboard .admin-primary {
+  border-color: var(--berry);
+  background: var(--berry);
+  color: #fff;
+}
+
+.admin-dashboard .admin-primary:hover:not(:disabled) {
+  background: var(--berry-dark);
+  border-color: var(--berry-dark);
+}
+
+.admin-dashboard :is(.admin-secondary, .admin-product-row button, .admin-more-actions button):hover:not(:disabled) {
+  background: var(--pink);
+  border-color: var(--berry);
+}
+
+.admin-dashboard .admin-toolbar {
+  position: static;
+  inset: auto;
+  transform: none;
+  z-index: auto;
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-bottom: 20px;
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fff;
+}
+
+.admin-dashboard :is(.admin-toolbar, .admin-editor-form) label,
+.admin-dashboard .admin-stock-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.admin-dashboard .admin-toolbar label {
+  flex: 1 1 180px;
+}
+
+.admin-dashboard :is(.admin-toolbar, .admin-editor-form, .admin-stock-form) :is(input:not([type='checkbox']):not([type='radio']), select, textarea) {
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid #cdbbb6;
+  border-radius: 8px;
+  background: #fff;
+  color: var(--ink);
+  font: inherit;
+  font-size: 16px;
+}
+
+.admin-dashboard .admin-editor-form textarea {
+  min-height: 140px;
+  resize: vertical;
+}
+
+.admin-dashboard .admin-editor-form input[readonly] {
+  background: #f6f1ed;
+  color: var(--admin-muted);
+}
+
+.admin-dashboard .admin-more-actions {
+  margin-bottom: 20px;
+  padding: 0 16px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+}
+
+.admin-dashboard .admin-more-actions summary {
+  align-content: center;
+  padding: 10px 0;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.admin-dashboard .admin-more-actions[open] {
+  padding-bottom: 16px;
+}
+
+.admin-dashboard .admin-more-actions button {
+  margin: 8px 8px 0 0;
+}
+
+.admin-dashboard .admin-product-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.admin-dashboard .admin-product-row {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) minmax(90px, auto) minmax(160px, auto) minmax(110px, auto) auto;
+  align-items: center;
+  gap: 20px;
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fff;
+}
+
+.admin-dashboard .admin-product-identity {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+}
+
+.admin-dashboard .admin-product-identity :is(img, .admin-product-placeholder) {
+  flex: 0 0 64px;
+  width: 64px;
+  height: 64px;
+  border-radius: 10px;
+  object-fit: cover;
+  background: var(--pink);
+}
+
+.admin-dashboard .admin-product-placeholder {
+  display: grid;
+  place-items: center;
+  color: var(--admin-muted);
+  font-size: 12px;
+  text-align: center;
+}
+
+.admin-dashboard .admin-product-identity h3 {
+  margin: 0;
+  font-size: 16px;
+  overflow-wrap: anywhere;
+}
+
+.admin-dashboard .admin-product-identity p {
+  margin: 4px 0 0;
+  color: var(--admin-muted);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.admin-dashboard .admin-product-price {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-variant-numeric: tabular-nums;
+}
+
+.admin-dashboard .admin-product-price small {
+  color: var(--admin-muted);
+}
+
+.admin-dashboard .admin-product-price strong {
+  font-size: 17px;
+  white-space: nowrap;
+}
+
+.admin-dashboard .admin-stock-form {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.admin-dashboard .admin-stock-form label {
+  flex: 1;
+  max-width: 100px;
+}
+
+.admin-dashboard .admin-stock-form button {
+  padding-inline: 12px;
+}
+
+.admin-dashboard .admin-product-state {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.admin-dashboard .admin-product-state .stock-badge {
+  position: static;
+  display: inline-flex;
+  padding: 5px 10px;
+  border-radius: 6px;
+  background: #f1eae5;
+  color: var(--ink);
+  font-size: 11px;
+  letter-spacing: 0.02em;
+}
+
+.admin-dashboard .admin-product-state .stock-badge.green {
+  background: #e6f3e9;
+  color: #245b36;
+}
+
+.admin-dashboard .admin-product-state .stock-badge.orange {
+  background: #fff0d4;
+  color: #79500b;
+}
+
+.admin-dashboard .admin-product-state .stock-badge.red {
+  background: #fbe7e7;
+  color: #942b2b;
+}
+
+.admin-dashboard :is(.admin-feedback, .admin-error) {
+  margin: 0 0 20px;
+  padding: 14px 16px;
+  border: 1px solid #b6d9bf;
+  border-radius: 8px;
+  background: #edf7ef;
+  color: #245b36;
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+
+.admin-dashboard .admin-error {
+  border-color: #e8b9b9;
+  background: #fff0f0;
+  color: #942b2b;
+}
+
+.admin-dashboard .admin-editor {
+  position: static;
+  width: 100%;
+  min-width: 0;
+  max-width: none;
+  margin: 0;
+}
+
+.admin-dashboard .admin-editor-form {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.admin-dashboard .admin-commercial-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 20px;
+  padding: 24px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fff;
+}
+
+.admin-dashboard .admin-editor-columns {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
+  align-items: start;
+  gap: 24px;
+}
+
+.admin-dashboard .admin-form-card {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-width: 0;
+  padding: 24px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fff;
+}
+
+.admin-dashboard .admin-form-card :is(h3, h4) {
+  margin: 0;
+  font-size: 18px;
+}
+
+.admin-dashboard .admin-form-card p {
+  margin: 0;
+  color: var(--admin-muted);
+  font-size: 14px;
+}
+
+.admin-dashboard .admin-media-preview {
+  display: grid;
+  place-items: center;
+  min-height: 180px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--cream);
+}
+
+.admin-dashboard .admin-media-preview img {
+  display: block;
+  width: 100%;
+  max-height: 320px;
+  object-fit: contain;
+}
+
+.admin-dashboard .admin-editor-actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 10;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 16px 20px;
+  padding-bottom: max(16px, env(safe-area-inset-bottom));
+  border: 1px solid var(--line);
+  border-radius: 12px 12px 0 0;
+  background: #fff;
+  box-shadow: 0 -6px 20px rgba(72, 42, 45, 0.06);
+}
+
+@media (max-width: 1200px) {
+  .admin-dashboard .admin-product-row {
+    grid-template-columns: minmax(180px, 1fr) auto auto;
+    gap: 16px;
+  }
+
+  .admin-dashboard .admin-product-identity {
+    grid-column: 1 / 3;
+  }
+}
+
+@media (max-width: 900px) {
+  .admin-dashboard {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto auto 1fr;
+    background: var(--cream);
+  }
+
+  .admin-dashboard .admin-header {
+    grid-column: 1;
+    grid-row: 1;
+    position: static;
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    min-height: 0;
+    padding: 16px 24px;
+  }
+
+  .admin-dashboard .admin-header h1 {
+    font-size: 24px;
+  }
+
+  .admin-dashboard .admin-nav {
+    grid-column: 1;
+    grid-row: 2;
+    position: static;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    max-height: none;
+    overflow-x: auto;
+    padding: 8px 24px 16px;
+    background: #fff;
+    border-bottom: 1px solid var(--line);
+    scroll-padding-inline: 24px;
+  }
+
+  .admin-dashboard .admin-nav .nav-item {
+    flex: 0 0 auto;
+    width: auto;
+    white-space: nowrap;
+  }
+
+  .admin-dashboard .admin-content {
+    grid-column: 1;
+    grid-row: 3;
+    padding: 24px;
+  }
+
+  .admin-dashboard .admin-editor-columns {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 600px) {
+  .admin-dashboard .admin-header {
+    gap: 12px;
+    padding: 12px 16px;
+  }
+
+  .admin-dashboard .admin-header h1 {
+    font-size: 22px;
+  }
+
+  .admin-dashboard .admin-nav {
+    padding-inline: 16px;
+    scroll-padding-inline: 16px;
+  }
+
+  .admin-dashboard .admin-content {
+    padding: 24px 16px;
+  }
+
+  .admin-dashboard .admin-page-heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .admin-dashboard .admin-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 16px;
+  }
+
+  .admin-dashboard .admin-toolbar label {
+    flex: auto;
+  }
+
+  .admin-dashboard .admin-product-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 16px 12px;
+    padding: 16px;
+  }
+
+  .admin-dashboard .admin-product-price {
+    grid-column: 1 / -1;
+  }
+
+  .admin-dashboard .admin-stock-form {
+    grid-column: 1 / -1;
+  }
+
+  .admin-dashboard .admin-stock-form label {
+    max-width: none;
+  }
+
+  .admin-dashboard .admin-commercial-grid {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 16px;
+  }
+
+  .admin-dashboard .admin-form-card {
+    padding: 16px;
+  }
+
+  .admin-dashboard .admin-editor-actions {
+    gap: 8px;
+    padding-inline: 12px;
+  }
+
+  .admin-dashboard .admin-editor-actions > button {
+    flex: 1 1 auto;
+  }
+}

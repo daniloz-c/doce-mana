@@ -58,10 +58,10 @@ class Product {
 
   static create(product) {
     return new Promise((resolve, reject) => {
-      const { name, description, price, category, image_url, stock_quantity = 0 } = product;
+      const { name, description, price, category, image_url, stock_quantity = 0, is_active = 1 } = product;
       db.run(
-        'INSERT INTO products (name, description, price, category, image_url, stock_quantity) VALUES (?, ?, ?, ?, ?, ?)',
-        [name, description, price, category, image_url, stock_quantity],
+        'INSERT INTO products (name, description, price, category, image_url, stock_quantity, is_active) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        [name, description, price, category, image_url, stock_quantity, is_active],
         function(err) {
           if (err) reject(err);
           else resolve({ id: this.lastID, ...product });

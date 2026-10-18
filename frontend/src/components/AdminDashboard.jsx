@@ -7,14 +7,19 @@ function AdminDashboard({ onLogout }) {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [stockDraft, setStockDraft] = useState({});
-  const [newProduct, setNewProduct] = useState({ name: '', category: '', price: '', description: '', image_url: '' });
+  const [creatingProduct, setCreatingProduct] = useState(false);
+  const [feedback, setFeedback] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState('all');
+  const [editorOriginal, setEditorOriginal] = useState('');
   const [editingProduct, setEditingProduct] = useState(null);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [uploadError, setUploadError] = useState('');
   async function mutate(action) {
+    if (busy) return;
     setBusy(true);
     setError('');
-    try { await action(); await loadDashboardData(); }
+    setFeedback('');
+    try { await action(); const refreshed = await loadDashboardData(); if (refreshed) setFeedback('Alterações salvas com sucesso.'); }
     catch (error) { setError(error.message); }
     finally { setBusy(false); }
   }
@@ -48,8 +53,11 @@ function AdminDashboard({ onLogout }) {
       setDashboardStats(dashboardData);
       setProducts(dashboardData.allProducts || []);
       setOrders(dashboardData.orders || []);
+      setError('');
+      return true;
     } catch (error) {
       setError(error.message);
+      return false;
     } finally {
       setLoading(false);
     }
@@ -74,6 +82,7 @@ function AdminDashboard({ onLogout }) {
   };
 
   const handleLogout = async () => {
+    if (busy || uploadingImage || (editorDirty && !window.confirm('Sair e descartar as alterações não salvas?'))) return;
     try {
       await api.logout();
       onLogout();
@@ -116,17 +125,54 @@ function AdminDashboard({ onLogout }) {
     }
   };
 
+  const editorDirty = !!editingProduct && JSON.stringify(editingProduct) !== editorOriginal;
+
+  useEffect(() => {
+    if (!editorDirty) return;
+    const preventExit = event => { event.preventDefault(); event.returnValue = ''; };
+    window.addEventListener('beforeunload', preventExit);
+    return () => window.removeEventListener('beforeunload', preventExit);
+  }, [editorDirty]);
+
+  function closeEditor() {
+    if (busy || uploadingImage) return false;
+    if (editorDirty && !window.confirm('Descartar as alterações não salvas?')) return false;
+    setEditingProduct(null);
+    setCreatingProduct(false);
+    setUploadError('');
+    return true;
+  }
+
+  function navigate(view) {
+    if (editingProduct && !closeEditor()) return;
+    setActiveView(view);
+    setSearchTerm('');
+    setFeedback('');
+  }
+
+  function openEditor(product = null) {
+    const draft = product ? {
+      id: product.id, name: product.name, category: product.category, price: product.price,
+      description: product.description || '', image_url: product.image_url || '',
+      stock_quantity: product.stock_quantity, is_active: Number(product.is_active)
+    } : { name: '', category: '', price: '', description: '', image_url: '', stock_quantity: 0, is_active: 1 };
+    setEditingProduct(draft);
+    setEditorOriginal(JSON.stringify(draft));
+    setCreatingProduct(!product);
+    setUploadError('');
+    setError('');
+    setFeedback('');
+  }
+
   const filteredProducts = products.filter(product => {
     const matchesSearch = product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (product.category && product.category.toLowerCase().includes(searchTerm.toLowerCase()));
-    const matchesFilter = productFilter === 'all' || (
-      Number(product.is_active) === 1 && (
-        productFilter === 'available'
-          ? product.stock_quantity > 0
-          : product.stock_quantity <= 0
-      )
-    );
-    return matchesSearch && matchesFilter;
+    const matchesFilter = productFilter === 'all'
+      || (productFilter === 'inactive' && Number(product.is_active) !== 1)
+      || (productFilter === 'available' && Number(product.is_active) === 1 && product.stock_quantity > 0)
+      || (productFilter === 'out_of_stock' && Number(product.is_active) === 1 && product.stock_quantity <= 0)
+      || (productFilter === 'low_stock' && Number(product.is_active) === 1 && product.stock_quantity > 0 && product.stock_quantity <= 3);
+    return matchesSearch && matchesFilter && (categoryFilter === 'all' || product.category === categoryFilter);
   });
 
   const filteredOrders = orders.filter(order =>
@@ -134,7 +180,7 @@ function AdminDashboard({ onLogout }) {
     order.status.includes(searchTerm.toLowerCase())
   );
 
-  if (loading) {
+  if (loading && products.length === 0 && orders.length === 0) {
     return (
       <div className="admin-dashboard">
         <div className="loading-container">
@@ -148,8 +194,8 @@ function AdminDashboard({ onLogout }) {
     <div className="admin-dashboard">
       <header className="admin-header">
         <div className="admin-header-left">
-          <h1>Painel Administrativo</h1>
-          <p>Doce Maná - Gestão da Loja</p>
+          <h1>Doce Maná</h1>
+          <p>Administração da loja</p>
         </div>
         <button
           className="logout-button"
@@ -163,19 +209,22 @@ function AdminDashboard({ onLogout }) {
       <nav className="admin-nav">
         <button
           className={`nav-item ${activeView === 'dashboard' ? 'active' : ''}`}
-          onClick={() => setActiveView('dashboard')}
+          onClick={() => navigate('dashboard')}
+          aria-current={activeView === 'dashboard' ? 'page' : undefined}
         >
           Dashboard
         </button>
         <button
           className={`nav-item ${activeView === 'products' ? 'active' : ''}`}
-          onClick={() => setActiveView('products')}
+          onClick={() => navigate('products')}
+          aria-current={activeView === 'products' ? 'page' : undefined}
         >
           Produtos
         </button>
         <button
           className={`nav-item ${activeView === 'orders' ? 'active' : ''}`}
-          onClick={() => setActiveView('orders')}
+          onClick={() => navigate('orders')}
+          aria-current={activeView === 'orders' ? 'page' : undefined}
         >
           Pedidos
         </button>
@@ -188,7 +237,9 @@ function AdminDashboard({ onLogout }) {
       </nav>
 
       <main className="admin-content">
-        {error && <p role="alert">{error} <button onClick={loadDashboardData}>Atualizar painel</button></p>}
+        {error && <p role="alert" className="admin-error">{error} <button className="admin-secondary" onClick={loadDashboardData}>Atualizar painel</button></p>}
+        {feedback && <p role="status" className="admin-feedback">{feedback}</p>}
+        {loading && <p role="status">Atualizando painel...</p>}
         {activeView === 'dashboard' && (
           <>
             <div className="stats-grid">
@@ -274,122 +325,115 @@ function AdminDashboard({ onLogout }) {
 
         {activeView === 'products' && (
           <>
-            <div className="products-header">
-              <h2>Gerenciar Produtos</h2>
-              <select
-                aria-label="Filtrar produtos por disponibilidade"
-                className="status-select"
-                value={productFilter}
-                onChange={(e) => setProductFilter(e.target.value)}
-              >
-                <option value="all">Todos</option>
-                <option value="available">Disponíveis</option>
-                <option value="out_of_stock">Esgotados</option>
-              </select>
-              <input
-                type="text"
-                placeholder="Buscar produto..."
-                className="search-input"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
+            <div className="admin-page-heading">
+              <div><h2>{editingProduct ? (creatingProduct ? 'Novo produto' : editingProduct.name) : 'Produtos'}</h2><p>{editingProduct ? 'Organize os dados exibidos na loja.' : 'Gerencie preços, estoque e disponibilidade.'}</p></div>
+              {!editingProduct && <button className="admin-primary" onClick={() => openEditor()}>+ Novo produto</button>}
             </div>
-
-            <button disabled={busy} onClick={() => { if (window.confirm('Importar produtos ausentes do catálogo original com estoque zero? Produtos existentes não serão alterados.')) mutate(() => api.importCatalog()); }}>Importar catálogo original (estoque zero)</button>
-            <form onSubmit={e => { e.preventDefault(); mutate(async () => { await api.createProduct({ ...newProduct, price: Number(newProduct.price), stock_quantity: 0 }); setNewProduct({ name: '', category: '', price: '', description: '', image_url: '' }); setUploadError(''); }); }}>
-              <h3>Cadastrar produto com estoque zero</h3>
-              {['name', 'category', 'price', 'description'].map((field, index) => <label key={field}>{['Nome', 'Categoria', 'Preço', 'Descrição'][index]}<input required={field !== 'description'} type={field === 'price' ? 'number' : 'text'} min={field === 'price' ? 0 : undefined} step={field === 'price' ? '0.01' : undefined} value={newProduct[field]} onChange={e => setNewProduct({ ...newProduct, [field]: e.target.value })} /></label>)}
-              <div className="form-group-image">
-                <label>Foto do Produto (JPEG, PNG, WebP até 4MB):
-                  <input type="file" accept="image/jpeg,image/png,image/webp" disabled={uploadingImage || busy} onChange={e => handleImageFileChange(e.target.files[0], setNewProduct)} />
-                </label>
-                {uploadingImage && <p className="upload-loading">Enviando imagem...</p>}
-                {uploadError && <p className="upload-error" role="alert">{uploadError}</p>}
-                {newProduct.image_url && (
-                  <div className="image-preview">
-                    <img src={newProduct.image_url} alt="Preview" style={{ width: 80, height: 80, objectFit: 'cover', borderRadius: 4 }} />
-                    <button type="button" onClick={() => setNewProduct({ ...newProduct, image_url: '' })}>Remover foto</button>
+            {editingProduct ? (
+              <section className="admin-editor" aria-label="Cadastro e edição de produto">
+                <button type="button" className="admin-secondary" disabled={busy || uploadingImage} onClick={closeEditor}>Voltar para produtos</button>
+                <form className="admin-editor-form" onSubmit={event => {
+                  event.preventDefault();
+                  mutate(async () => {
+                    const payload = { name: editingProduct.name.trim(), category: editingProduct.category.trim(), price: Number(editingProduct.price), description: editingProduct.description, image_url: editingProduct.image_url, is_active: Number(editingProduct.is_active) };
+                    if (creatingProduct) await api.createProduct({ ...payload, stock_quantity: 0 });
+                    else await api.updateProduct(editingProduct.id, payload);
+                    setEditingProduct(null);
+                    setCreatingProduct(false);
+                  });
+                }}>
+                  <fieldset disabled={busy || uploadingImage} className="admin-commercial-grid">
+                    <label>Preço (R$)<input required type="number" min="0" step="0.01" value={editingProduct.price} onChange={event => setEditingProduct({ ...editingProduct, price: event.target.value })} /></label>
+                    <label>Estoque atual<input readOnly value={`${editingProduct.stock_quantity} unidades`} /><small>{creatingProduct ? 'O produto será criado com estoque zero.' : 'Ajuste a quantidade na lista para proteger pedidos concorrentes.'}</small></label>
+                    <label>Status de publicação<select value={editingProduct.is_active} onChange={event => setEditingProduct({ ...editingProduct, is_active: Number(event.target.value) })}><option value={1}>Ativo</option><option value={0}>Inativo</option></select><small>Produtos ativos sem estoque ficam esgotados.</small></label>
+                  </fieldset>
+                  <div className="admin-editor-columns">
+                    <fieldset disabled={busy || uploadingImage} className="admin-form-card">
+                      <legend>Informações do produto</legend>
+                      <label>Nome do produto<input required maxLength={200} value={editingProduct.name} onChange={event => setEditingProduct({ ...editingProduct, name: event.target.value })} /></label>
+                      <label>Categoria<input required list="admin-categories" value={editingProduct.category} onChange={event => setEditingProduct({ ...editingProduct, category: event.target.value })} /></label>
+                      <datalist id="admin-categories">{[...new Set(products.map(product => product.category).filter(Boolean))].map(category => <option key={category} value={category} />)}</datalist>
+                      <label>Descrição<textarea rows={6} value={editingProduct.description} onChange={event => setEditingProduct({ ...editingProduct, description: event.target.value })} /></label>
+                    </fieldset>
+                    <fieldset disabled={busy || uploadingImage} className="admin-form-card">
+                      <legend>Foto do produto</legend>
+                      <div className="admin-media-preview">{editingProduct.image_url ? <img src={editingProduct.image_url} alt={`Foto de ${editingProduct.name || 'novo produto'}`} /> : <p>Nenhuma foto selecionada</p>}</div>
+                      <label>Selecionar imagem<input type="file" accept="image/jpeg,image/png,image/webp" onChange={event => handleImageFileChange(event.target.files[0], setEditingProduct)} /></label>
+                      <small>JPEG, PNG ou WebP de até 4 MB.</small>
+                      {editingProduct.image_url && <button type="button" className="admin-secondary" onClick={() => setEditingProduct({ ...editingProduct, image_url: '' })}>Remover foto</button>}
+                    </fieldset>
                   </div>
+                  {uploadingImage && <p role="status">Enviando imagem...</p>}
+                  {uploadError && <p role="alert" className="admin-error">{uploadError}</p>}
+                  <div className="admin-editor-actions"><span>{editorDirty ? 'Alterações não salvas' : 'Nenhuma alteração pendente'}</span><button type="button" className="admin-secondary" disabled={busy || uploadingImage} onClick={closeEditor}>Cancelar</button><button type="submit" className="admin-primary" disabled={busy || uploadingImage || (!creatingProduct && !editorDirty)}>{busy ? 'Salvando...' : creatingProduct ? 'Cadastrar produto' : 'Salvar alterações'}</button></div>
+                </form>
+              </section>
+            ) : <>
+              <div className="admin-toolbar">
+                <label>Buscar produto
+                  <input type="search" placeholder="Nome ou categoria..." value={searchTerm} onChange={event => setSearchTerm(event.target.value)} />
+                </label>
+                <label>Status e estoque
+                  <select value={productFilter} onChange={event => setProductFilter(event.target.value)}>
+                    <option value="all">Todos</option>
+                    <option value="available">Disponíveis</option>
+                    <option value="out_of_stock">Esgotados</option>
+                    <option value="low_stock">Estoque baixo</option>
+                    <option value="inactive">Inativos</option>
+                  </select>
+                </label>
+                <label>Categoria
+                  <select value={categoryFilter} onChange={event => setCategoryFilter(event.target.value)}>
+                    <option value="all">Todas</option>
+                    {[...new Set(products.map(product => product.category).filter(Boolean))].map(category => <option key={category} value={category}>{category}</option>)}
+                  </select>
+                </label>
+                <button type="button" className="admin-secondary" onClick={() => { setSearchTerm(''); setProductFilter('all'); setCategoryFilter('all'); }}>Limpar filtros</button>
+              </div>
+              <details className="admin-more-actions">
+                <summary>Mais ações</summary>
+                <button type="button" disabled={busy} onClick={() => { if (window.confirm('Importar produtos ausentes do catálogo original com estoque zero? Produtos existentes não serão alterados.')) mutate(() => api.importCatalog()); }}>Importar catálogo original (estoque zero)</button>
+              </details>
+              <div className="admin-product-list">
+                {filteredProducts.length === 0 ? (
+                  <div className="empty-grid">Nenhum produto encontrado</div>
+                ) : (
+                  filteredProducts.map(product => {
+                    const stockStatus = getStockStatus(product);
+                    const stockValue = stockDraft[product.id] ?? String(product.stock_quantity);
+                    const isActive = Number(product.is_active) === 1;
+
+                    return (
+                      <article key={product.id} className="admin-product-row">
+                        <div className="admin-product-identity">
+                          {product.image_url ? <img src={product.image_url} alt={product.name} loading="lazy" /> : <div className="admin-product-placeholder" aria-hidden="true">Sem foto</div>}
+                          <div><h3>{product.name}</h3><p>{product.category}</p></div>
+                        </div>
+                        <div className="admin-product-price"><small>Preço</small><strong>{formatPrice(product.price)}</strong></div>
+                        <form className="admin-stock-form" onSubmit={event => {
+                          event.preventDefault();
+                          if (stockValue !== '' && Number.isInteger(Number(stockValue)) && Number(stockValue) >= 0 && Number(stockValue) <= 2147483647) mutate(async () => {
+                            await api.updateStock(product.id, Number(stockValue), product.stock_quantity);
+                            setStockDraft(current => { const next = { ...current }; delete next[product.id]; return next; });
+                          });
+                        }}>
+                          <label>Estoque
+                            <input type="number" min="0" step="1" max="2147483647" required aria-label={`Estoque de ${product.name}`} disabled={busy} value={stockValue} onChange={event => setStockDraft({ ...stockDraft, [product.id]: event.target.value })} />
+                          </label>
+                          <button type="submit" disabled={busy || Number(stockValue) === Number(product.stock_quantity)}>Salvar</button>
+                        </form>
+                        <div className="admin-product-state">
+                          <span>{isActive ? 'Ativo' : 'Inativo'}</span>
+                          <span className={`stock-badge ${stockStatus.color}`}>{stockStatus.label}</span>
+                          <button type="button" disabled={busy} onClick={() => mutate(() => api.toggleProduct(product.id))}>{isActive ? 'Desativar' : 'Ativar'}</button>
+                        </div>
+                        <button type="button" disabled={busy} onClick={() => openEditor(product)}>Editar</button>
+                      </article>
+                    );
+                  })
                 )}
               </div>
-              <button disabled={busy || uploadingImage}>Cadastrar</button>
-            </form>
-            <div className="products-grid">
-              {filteredProducts.length === 0 ? (
-                <div className="empty-grid">Nenhum produto encontrado</div>
-              ) : (
-                filteredProducts.map(product => {
-                  const stockStatus = getStockStatus(product);
-
-                  return (
-                    <article key={product.id} className="product-card">
-                      <div className={`product-image product-tone-${product.id % 4}`}>
-                        {product.image_url ? (
-                          <img
-                            src={`${product.image_url}`}
-                            alt={product.name}
-                            loading="lazy"
-                          />
-                        ) : (
-                          <div className="product-placeholder" aria-hidden="true">
-                            <span>{product.category === 'Brownies' ? '🍫' : '🍓'}</span>
-                            <i>{product.category === 'Brownies' ? '✳' : '♡'}</i>
-                          </div>
-                        )}
-                        <span className={`stock-badge ${stockStatus.color}`}>
-                          {stockStatus.label}
-                        </span>
-                      </div>
-
-                      <div className="product-details">
-                        <span className="product-category">{product.category}</span>
-                        <h3>{product.name}</h3>
-                        <p>{product.description}</p>
-                      </div>
-
-                      <div className="product-footer">
-                        <div>
-                          <strong>{formatPrice(product.price)}</strong>
-                          <small>/ unidade</small>
-                        </div>
-                        <div>
-                          <form onSubmit={e => { e.preventDefault(); const value = stockDraft[product.id] ?? String(product.stock_quantity); if (value !== '' && Number.isInteger(Number(value)) && Number(value) >= 0) mutate(async () => { await api.updateStock(product.id, Number(value), product.stock_quantity); setStockDraft(current => { const next = { ...current }; delete next[product.id]; return next; }); }); }}>
-                            <label>Estoque disponível<input type="number" min="0" step="1" required value={stockDraft[product.id] ?? product.stock_quantity} onChange={e => setStockDraft({ ...stockDraft, [product.id]: e.target.value })} /></label>
-                            <button disabled={busy} className="edit-stock-button">Salvar quantidade</button>
-                          </form>
-                          <button
-                            type="button"
-                            className="status-activity-button"
-                            disabled={busy}
-                            onClick={() => mutate(() => api.toggleProduct(product.id))}
-                          >
-                            {product.is_active ? 'Ativo' : 'Inativo'}
-                          </button>
-                          <button
-                            type="button"
-                            className="edit-product-button"
-                            disabled={busy}
-                            onClick={() => {
-                              setEditingProduct({
-                                id: product.id,
-                                name: product.name,
-                                category: product.category,
-                                price: product.price,
-                                description: product.description || '',
-                                image_url: product.image_url || ''
-                              });
-                              setUploadError('');
-                            }}
-                          >
-                            Editar Detalhes
-                          </button>
-                        </div>
-                      </div>
-                    </article>
-                  );
-                })
-              )}
-            </div>
+            </>}
           </>
         )}
 
@@ -527,68 +571,6 @@ function AdminDashboard({ onLogout }) {
           </>
         )}
       </main>
-
-      {editingProduct && (
-        <div className="modal-backdrop">
-          <div className="modal">
-            <div className="modal-header">
-              <h2>Editar Produto #{editingProduct.id}</h2>
-              <button
-                className="close-button"
-                disabled={uploadingImage || busy} onClick={() => setEditingProduct(null)}
-                aria-label="Fechar modal"
-              >
-                ✕
-              </button>
-            </div>
-            <div className="modal-content">
-              <form onSubmit={e => {
-                e.preventDefault();
-                mutate(async () => {
-                  await api.updateProduct(editingProduct.id, {
-                    name: editingProduct.name,
-                    category: editingProduct.category,
-                    price: Number(editingProduct.price),
-                    description: editingProduct.description,
-                    image_url: editingProduct.image_url
-                  });
-                  setEditingProduct(null);
-                });
-              }}>
-                <label>Nome:
-                  <input required type="text" value={editingProduct.name} onChange={e => setEditingProduct({ ...editingProduct, name: e.target.value })} />
-                </label>
-                <label>Categoria:
-                  <input required type="text" value={editingProduct.category} onChange={e => setEditingProduct({ ...editingProduct, category: e.target.value })} />
-                </label>
-                <label>Preço:
-                  <input required type="number" min="0" step="0.01" value={editingProduct.price} onChange={e => setEditingProduct({ ...editingProduct, price: e.target.value })} />
-                </label>
-                <label>Descrição:
-                  <textarea value={editingProduct.description} onChange={e => setEditingProduct({ ...editingProduct, description: e.target.value })} />
-                </label>
-                <div className="form-group-image">
-                  <label>Foto do Produto (JPEG, PNG, WebP até 4MB):
-                    <input type="file" accept="image/jpeg,image/png,image/webp" disabled={uploadingImage || busy} onChange={e => handleImageFileChange(e.target.files[0], setEditingProduct)} />
-                  </label>
-                  {uploadingImage && <p className="upload-loading">Enviando imagem...</p>}
-                  {uploadError && <p className="upload-error" role="alert">{uploadError}</p>}
-                  {editingProduct.image_url && (
-                    <div className="image-preview">
-                      <img src={editingProduct.image_url} alt="Preview" style={{ width: 80, height: 80, objectFit: 'cover', borderRadius: 4 }} />
-                      <button type="button" onClick={() => setEditingProduct({ ...editingProduct, image_url: '' })}>Remover foto</button>
-                    </div>
-                  )}
-                </div>
-                <div className="modal-actions">
-                  <button type="submit" className="button button-primary" disabled={busy || uploadingImage}>Salvar Alterações</button>
-                  <button type="button" className="button button-secondary" disabled={uploadingImage || busy} onClick={() => setEditingProduct(null)}>Cancelar</button>
-                </div>
-              </form>
-            </div>
-          </div>
-        </div>
-      )}
 
       {showPixKeyModal && (
         <div className="modal-backdrop">
