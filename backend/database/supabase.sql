@@ -24,7 +24,7 @@ create table if not exists public.orders (
   customer_id text,
   customer_email text,
   customer_name text not null,
-  customer_phone text not null,
+  customer_phone text,
   customer_address text,
   total_amount double precision not null,
   status text not null default 'pending' check (status in ('pending','confirmed','cancelled','completed')),
@@ -68,6 +68,7 @@ grant execute on function public.decrement_stock(bigint, integer) to service_rol
 alter table public.orders add column if not exists request_id text unique;
 alter table public.orders add column if not exists customer_id text;
 alter table public.orders add column if not exists customer_email text;
+alter table public.orders alter column customer_phone drop not null;
 create or replace function public.import_catalog(catalog jsonb) returns integer
 language plpgsql set search_path = public as $$
 declare item jsonb; imported integer := 0;

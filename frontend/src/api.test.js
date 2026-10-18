@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { api } from './api.js';
-import { createCheckoutAttempt, resumeCheckout, validCustomer } from './checkoutAttempt.js';
+import { createCheckoutAttempt, resumeCheckout, shouldResumeCheckout, saveCheckoutReceipt } from './checkoutAttempt.js';
 
 test('retorno OAuth exige intenção local recente e não inicia pedido', () => {
   const saved = { cart: { 1: 2 }, loginStartedAt: 1000 };
@@ -15,11 +15,42 @@ test('retorno OAuth exige intenção local recente e não inicia pedido', () => 
   assert.equal(createCheckoutAttempt().pending, null);
 });
 
-test('nome e telefone são obrigatórios antes de confirmar', () => {
-  assert.equal(validCustomer('Maria', '(47) 99999-9999'), true);
-  for (const [name, phone] of [[' ', '47999999999'], ['Maria', ''], ['Maria', 'abcdefgh'], ['Maria', '--------'], ['Maria', '123']]) {
-    assert.equal(validCustomer(name, phone), false);
-  }
+test('retorno do login agenda checkout mesmo com identificador e tentativa preservados', () => {
+  const saved = { cart: { 1: 2 }, requestId: 'original', checkoutIntent: true, loginStartedAt: 1000 };
+  assert.equal(shouldResumeCheckout(saved, 'success', 2000), true);
+  const pending = createCheckoutAttempt().begin({ request_id: saved.requestId, items: [{ product_id: 1, quantity: 2 }] }, [{ id: 1, quantity: 2 }]);
+  assert.equal(shouldResumeCheckout({ ...saved, pending }, 'success', 2000), true);
+  assert.equal(shouldResumeCheckout({ ...saved, checkoutIntent: false }, 'success', 2000), false);
+  assert.equal(shouldResumeCheckout({ ...saved, checkoutIntent: undefined }, 'success', 2000), false);
+  assert.equal(shouldResumeCheckout(saved, 'error', 2000), false);
+  assert.equal(shouldResumeCheckout(saved, null, 2000), false);
+  assert.equal(shouldResumeCheckout(saved, 'success', 601000), false);
+  assert.equal(shouldResumeCheckout(saved, 'success', 999), false);
+  assert.equal(saved.requestId, 'original');
+});
+
+test('recibo persistido antes de limpar tentativa e navegar ao WhatsApp', () => {
+  const events = [];
+  const order = { id: 42, items: [{ name: 'Brownie', quantity: 2, price: 5 }], total_amount: 10 };
+  const customer = { name: 'Cliente Google', email: 'google@example.test' };
+  const storage = { setItem(key, value) {
+    assert.equal(key, 'doce-checkout');
+    const saved = JSON.parse(value);
+    assert.equal(saved.receipt.id, 42);
+    assert.equal(saved.pending, null);
+    assert.deepEqual(saved.cart, {});
+    events.push('saved');
+  } };
+  saveCheckoutReceipt(order, customer, order.items, 'next', storage, url => {
+    events.push('navigate');
+    const target = new URL(url);
+    assert.equal(target.hostname, 'wa.me');
+    assert.match(target.searchParams.get('text'), /Pedido #42 - Cliente Google/);
+    assert.match(target.searchParams.get('text'), /2x Brownie/);
+    assert.doesNotMatch(target.searchParams.get('text'), /undefined|Telefone|CPF/);
+  }, () => events.push('finish'));
+  assert.deepEqual(events, ['saved', 'finish', 'navigate']);
+  assert.throws(() => saveCheckoutReceipt(order, customer, [], 'next', { setItem() { throw new Error('storage'); } }, () => assert.fail('não navegar'), () => assert.fail('não limpar')), /storage/);
 });
 
 test('resposta perdida preserva snapshot e chave até resultado definitivo', () => {
@@ -110,11 +141,7 @@ test('métodos de autenticação de cliente e upload de imagem', async () => {
     assert.equal(uploadRes.image_url, 'https://img.test/pic.png');
     assert.equal(calls[3].url, '/api/admin/upload');
     assert.equal(calls[3].method, 'POST');
-    await api.loginCustomerWithPassword('customer@example.com', 'test-password');
-    assert.equal(calls[4].url, '/api/customer/password-login');
-    assert.equal(calls[4].method, 'POST');
-    assert.equal(calls[4].credentials, 'include');
-    assert.deepEqual(JSON.parse(calls[4].body), { email: 'customer@example.com', password: 'test-password' });
+    assert.equal(api.loginCustomerWithPassword, undefined);
     assert.ok(calls.every(call => call.url !== '/api/orders'));
   } finally { globalThis.fetch = original; }
 });

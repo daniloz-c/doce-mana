@@ -32,7 +32,7 @@ const Order = {
         items.push({ ...item, price: product.price });
       }
       const total = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
-      const inserted = await run('INSERT INTO orders (customer_id, customer_email, customer_name, customer_phone, total_amount, reservation_token) VALUES (?, ?, ?, ?, ?, ?)', [input.customer_id || null, input.customer_email || null, input.customer_name, input.customer_phone, total, input.request_id]);
+      const inserted = await run('INSERT INTO orders (customer_id, customer_email, customer_name, customer_phone, total_amount, reservation_token) VALUES (?, ?, ?, ?, ?, ?)', [input.customer_id || null, input.customer_email || null, input.customer_name, input.customer_phone || '', total, input.request_id]);
       for (const item of items) await run('INSERT INTO order_items (order_id, product_id, quantity, price) VALUES (?, ?, ?, ?)', [inserted.lastID, item.product_id, item.quantity, item.price]);
       return this.getById(inserted.lastID);
     });

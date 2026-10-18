@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { createCheckoutAttempt, resumeCheckout, validCustomer } from './checkoutAttempt';
+import { createCheckoutAttempt, resumeCheckout, shouldResumeCheckout, saveCheckoutReceipt } from './checkoutAttempt';
 import AdminLogin from './components/AdminLogin';
 import AdminDashboard from './components/AdminDashboard';
 import { api } from './api';
@@ -76,15 +76,15 @@ function Icon({ name, size = 20 }) {
 }
 
 function App() {
-  const [savedCheckout] = useState(() => {
-    try { return JSON.parse(sessionStorage.getItem('doce-checkout') || 'null') || {}; } catch { return {}; }
-  });
-  const [products, setProducts] = useState([]);
-  const [catalogError, setCatalogError] = useState('');
-  const [catalogLoading, setCatalogLoading] = useState(true);
+const [savedCheckout] = useState(() => {
+     try { return JSON.parse(sessionStorage.getItem('doce-checkout') || 'null') || {}; } catch { return {}; }
+   });
+   const [products, setProducts] = useState([]);
+   const [catalogError, setCatalogError] = useState('');
+   const [catalogLoading, setCatalogLoading] = useState(true);
+   const [hasCatalogLoaded, setHasCatalogLoaded] = useState(false);
+    const [autoCheckoutScheduled, setAutoCheckoutScheduled] = useState(() => shouldResumeCheckout(savedCheckout, new URLSearchParams(window.location.search).get('login')));
   const [submitting, setSubmitting] = useState(false);
-  const [customerName, setCustomerName] = useState(savedCheckout.customerName || '');
-  const [customerPhone, setCustomerPhone] = useState(savedCheckout.customerPhone || '');
   const [requestId, setRequestId] = useState(() => savedCheckout.requestId || crypto.randomUUID());
   const [receipt, setReceipt] = useState(savedCheckout.receipt || null);
   const [sessionLoading, setSessionLoading] = useState(true);
@@ -93,46 +93,52 @@ function App() {
   const loginSending = useRef(false);
   const attempt = useRef(createCheckoutAttempt(savedCheckout.pending));
   const sending = useRef(false);
+  const checkoutIntent = useRef(autoCheckoutScheduled);
+  const oauthStartedAt = useRef(savedCheckout.loginStartedAt);
+  const navigating = useRef(false);
   const pending = attempt.current.pending;
   async function refreshProducts() {
-    try {
-      const data = await api.getProducts();
-      setProducts(data.products.map(product => ({ ...product, image_url: product.image_url || (product.category === 'Brownies' ? browniePhoto : product.category === 'Morangos do Amor' ? strawberryPhoto : null) })));
-      setCatalogError('');
-      setCart(current => attempt.current.pending ? current : Object.fromEntries(data.products.filter(p => current[p.id]).map(p => [p.id, Math.min(current[p.id], p.stock_quantity)])));
-    } catch (error) {
-      setCatalogError(error.message);
-    } finally {
-      setCatalogLoading(false);
-    }
-  }
-  useEffect(() => {
-    refreshProducts();
-    const timer = setInterval(refreshProducts, 30000);
-    window.addEventListener('focus', refreshProducts);
-    return () => { clearInterval(timer); window.removeEventListener('focus', refreshProducts); };
-  }, []);
+try {
+       const data = await api.getProducts();
+       setProducts(data.products.map(product => ({ ...product, image_url: product.image_url || (product.category === 'Brownies' ? browniePhoto : product.category === 'Morangos do Amor' ? strawberryPhoto : null) })));
+       setCatalogError('');
+       setCart(current => attempt.current.pending ? current : Object.fromEntries(data.products.filter(p => current[p.id]).map(p => [p.id, Math.min(current[p.id], p.stock_quantity)])));
+     } catch (error) {
+       setCatalogError(error.message);
+     } finally {
+       setCatalogLoading(false);
+       setHasCatalogLoaded(true);
+     }
+   }
+   useEffect(() => {
+     refreshProducts();
+     const timer = setInterval(refreshProducts, 30000);
+     window.addEventListener('focus', refreshProducts);
+     return () => { clearInterval(timer); window.removeEventListener('focus', refreshProducts); };
+   }, [attempt.current.pending]);
 
-  useEffect(() => {
-    api.getCustomerSession().then(data => {
-      if (data && data.customer) {
-        setCustomerSession(data.customer);
-        if (data.customer.name && !customerName) setCustomerName(data.customer.name);
-      }
-    }).catch(() => { setCheckoutError('Não foi possível verificar sua sessão. Tente entrar novamente.'); }).finally(() => setSessionLoading(false));
-  }, []);
-  const [activeCategory, setActiveCategory] = useState('Todos');
+useEffect(() => {
+     api.getCustomerSession().then(data => {
+       if (data && data.customer) {
+         setCustomerSession(data.customer);
+       }
+     }).catch(() => { setCheckoutError('Não foi possível verificar sua sessão. Tente entrar novamente.'); }).finally(() => setSessionLoading(false));
+
+   }, []);
+   const [activeCategory, setActiveCategory] = useState('Todos');
   const [cart, setCart] = useState(savedCheckout.cart || {});
   const [isCartOpen, setIsCartOpen] = useState(() => resumeCheckout(savedCheckout, new URLSearchParams(window.location.search).get('login')));
   const [orderSent, setOrderSent] = useState(false);
+   const pendingNextLogoutOrSwitch = useRef(null);
   const [showAdminLogin, setShowAdminLogin] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
   const [customerSession, setCustomerSession] = useState(null);
   const [showGoogleLogin, setShowGoogleLogin] = useState(false);
 
   useEffect(() => {
-    try { sessionStorage.setItem('doce-checkout', JSON.stringify({ cart, customerName, customerPhone, requestId, pending, receipt })); } catch {}
-  }, [cart, customerName, customerPhone, requestId, pending, receipt]);
+    if (navigating.current) return;
+    try { sessionStorage.setItem('doce-checkout', JSON.stringify({ cart, requestId, pending, receipt, checkoutIntent: checkoutIntent.current, loginStartedAt: oauthStartedAt.current })); } catch {}
+  }, [cart, requestId, pending, receipt]);
 
   useEffect(() => {
     const result = new URLSearchParams(window.location.search).get('login');
@@ -168,7 +174,14 @@ function App() {
   }
 
   function closeModal() {
+    checkoutIntent.current = false;
     setIsCartOpen(false);
+  }
+
+  function cancelAuthentication() {
+    checkoutIntent.current = false;
+    oauthStartedAt.current = undefined;
+    setShowGoogleLogin(false);
   }
 
   function modal() {
@@ -191,37 +204,14 @@ function App() {
     0,
   );
 
-  async function passwordLogin(event) {
-    event.preventDefault();
-    if (loginSending.current) return;
-    const form = event.currentTarget;
-    const data = new FormData(form);
-    loginSending.current = true;
-    setLoginBusy(true);
-    setCheckoutError('');
-    try {
-      const result = await api.loginCustomerWithPassword(data.get('email'), data.get('password'));
-      setCustomerSession(result.customer);
-      if (!customerName && result.customer.name) setCustomerName(result.customer.name);
-      form.reset();
-      setShowGoogleLogin(false);
-      setIsCartOpen(true);
-    } catch (error) {
-      setCheckoutError(error.message);
-    } finally {
-      form.elements.password.value = '';
-      loginSending.current = false;
-      setLoginBusy(false);
-    }
-  }
-
   async function loginCustomer() {
     if (loginSending.current) return;
     loginSending.current = true;
     setLoginBusy(true);
     setCheckoutError('');
     try {
-      sessionStorage.setItem('doce-checkout', JSON.stringify({ cart, customerName, customerPhone, requestId, pending: attempt.current.pending, receipt, loginStartedAt: Date.now() }));
+      oauthStartedAt.current = Date.now();
+      sessionStorage.setItem('doce-checkout', JSON.stringify({ cart, requestId, pending: attempt.current.pending, receipt, checkoutIntent: checkoutIntent.current, loginStartedAt: oauthStartedAt.current }));
       const result = await api.loginCustomer();
       if (!result.url) throw new Error('Login indisponível. Tente novamente.');
       window.location.assign(result.url);
@@ -233,36 +223,41 @@ function App() {
   }
 
   async function checkout() {
-    if (sending.current || sessionLoading || loginBusy) return;
+    if (sending.current || navigating.current || sessionLoading || loginBusy) return;
+    checkoutIntent.current = true;
     setCheckoutError('');
     if (!customerSession) {
       setShowGoogleLogin(true);
       return;
     }
+    checkoutIntent.current = false;
     if (!attempt.current.pending && cartItems.length === 0) {
       alert('Seu carrinho está vazio. Adicione produtos para fazer um pedido.');
       return;
     }
 
-    if (!attempt.current.pending && (!validCustomer(customerName, customerPhone) || catalogLoading || catalogError)) {
-      setCheckoutError('Informe seu nome e telefone válido e aguarde o carregamento do cardápio.');
+    if (!attempt.current.pending && (catalogLoading || catalogError)) {
+      setCheckoutError('Aguarde o carregamento do cardápio.');
       return;
     }
-    const snapshot = attempt.current.begin({ request_id: requestId, customer_name: customerName, customer_phone: customerPhone, items: cartItems.map(item => ({ product_id: item.id, quantity: item.quantity })) }, cartItems);
+    checkoutIntent.current = false;
+    const snapshot = attempt.current.begin({ request_id: requestId, items: cartItems.map(item => ({ product_id: item.id, quantity: item.quantity })) }, cartItems);
     sending.current = true;
     setSubmitting(true);
     try {
-      sessionStorage.setItem('doce-checkout', JSON.stringify({ cart, customerName, customerPhone, requestId, pending: snapshot, receipt }));
+      sessionStorage.setItem('doce-checkout', JSON.stringify({ cart, requestId, pending: snapshot, receipt }));
       const { order } = await api.createOrder(snapshot.payload);
-      const message = [`Pedido #${order.id} - ${customerName}`, ...order.items.map(item => `${item.quantity}x ${item.name} - ${formatPrice(item.price * item.quantity)}`), `Total: ${formatPrice(order.total_amount)}`].join('\n');
-      setReceipt({ id: order.id, url: `https://wa.me/${whatsappNumber}?text=${encodeURIComponent(message)}` });
-      attempt.current.finish();
-      setCart({});
-      setRequestId(crypto.randomUUID());
-      await refreshProducts();
+      const nextRequestId = crypto.randomUUID();
+      saveCheckoutReceipt(order, customerSession, snapshot.items, nextRequestId, sessionStorage, url => window.location.assign(url), nextReceipt => {
+        navigating.current = true;
+        setReceipt(nextReceipt);
+        attempt.current.finish();
+        setCart({});
+        setRequestId(nextRequestId);
+      });
     } catch (error) {
       setCheckoutError(error.message);
-      if (error.status === 401) { setCustomerSession(null); setShowGoogleLogin(true); }
+      if (error.status === 401) { checkoutIntent.current = true; setCustomerSession(null); setShowGoogleLogin(true); }
       attempt.current.reject(error);
       if (!attempt.current.pending) { setRequestId(crypto.randomUUID()); await refreshProducts(); }
     } finally {
@@ -270,6 +265,26 @@ function App() {
       setSubmitting(false);
     }
   }
+
+useEffect(() => {
+     const shouldCheckout = autoCheckoutScheduled && customerSession && !sessionLoading && !loginBusy && !catalogLoading && !catalogError && !submitting && !navigating.current && checkoutIntent.current && !pending;
+     if (shouldCheckout) {
+        setAutoCheckoutScheduled(false);
+       checkout();
+       checkoutIntent.current = false;
+       return;
+     }
+     if (autoCheckoutScheduled && hasCatalogLoaded && customerSession && !sessionLoading && !loginBusy && !catalogError && !submitting && !navigating.current && checkoutIntent.current) {
+       checkPending();
+     }
+   }, [autoCheckoutScheduled, hasCatalogLoaded, customerSession, sessionLoading, loginBusy, catalogLoading, catalogError, submitting, pending, checkoutIntent.current, navigating.current]);
+   async function checkPending() {
+      if (attempt.current.pending) {
+        setAutoCheckoutScheduled(false);
+        checkout();
+       checkoutIntent.current = false;
+     }
+   }
 
   return (
     <>
@@ -550,17 +565,13 @@ function App() {
                   {customerSession ? (
                     <div className="customer-logged-box">
                       <p>Conectado como: <strong>{customerSession.name || customerSession.email}</strong></p>
-                      <button type="button" className="button button-text" disabled={submitting || !!pending} onClick={async () => { try { await api.logoutCustomer(); setCustomerSession(null); setRequestId(crypto.randomUUID()); } catch (error) { alert(error.message); } }}>Trocar conta</button>
+                      <button type="button" className="button button-text" disabled={submitting || !!pending} onClick={async () => { pendingNextLogoutOrSwitch.current = true; try { await api.logoutCustomer(); setCustomerSession(null); setRequestId(crypto.randomUUID()); if (pendingNextLogoutOrSwitch.current) { pendingNextLogoutOrSwitch.current = null; pendingNextLogoutOrSwitch.current = true; setShowGoogleLogin(true); } } catch (error) { alert(error.message); pendingNextLogoutOrSwitch.current = false; } }}>Trocar conta</button>
                     </div>
                   ) : <p>Faça login para finalizar. Seus doces continuam na sacola.</p>}
-                  {customerSession && <div className="customer-fields">
-                    <label>Nome<input autoComplete="name" value={customerName} disabled={submitting || !!pending} onChange={e => setCustomerName(e.target.value)} maxLength={120} required /></label>
-                    <label>Telefone<input type="tel" autoComplete="tel" placeholder="(47) 99999-9999" value={customerPhone} disabled={submitting || !!pending} onChange={e => setCustomerPhone(e.target.value)} maxLength={30} required /></label>
-                  </div>}
                   {pending && <p role="status">Tentativa pendente: itens e dados estão preservados. Reenvie para obter o resultado sem criar outro pedido. Entre novamente com a mesma conta se a sessão expirar.</p>}
                   <small>Registrar o pedido consome o estoque. Depois, envie a confirmação pelo WhatsApp.</small>
                   <button type="button" disabled={submitting || sessionLoading || loginBusy || (!pending && (catalogLoading || !!catalogError || !cartItems.length))} className="button button-primary checkout-button" onClick={checkout}>
-                    {sessionLoading ? 'Verificando sessão...' : !customerSession ? 'Faça login para continuar' : pending ? 'Consultar / reenviar mesma tentativa' : 'Confirmar pedido para WhatsApp'} <Icon name="arrow" size={18} />
+                    {submitting ? 'Registrando pedido...' : sessionLoading ? 'Verificando sessão...' : pending ? 'Consultar / reenviar mesma tentativa' : 'Finalizar compra'} <Icon name="arrow" size={18} />
                   </button>
                   {orderSent && <p className="order-note" role="status">Seu pedido foi preparado para enviar. Se a nova aba não abriu, confira o bloqueador de pop-ups.</p>}
                 </div>
@@ -573,7 +584,7 @@ function App() {
       {showGoogleLogin && !customerSession && (
         <div className="customer-auth-backdrop">
           <section className="customer-auth" role="dialog" aria-modal="true" aria-labelledby="customer-auth-title" onKeyDown={event => {
-            if (event.key === 'Escape' && !loginBusy) setShowGoogleLogin(false);
+            if (event.key === 'Escape' && !loginBusy) cancelAuthentication();
             if (event.key === 'Tab') {
               const buttons = [...event.currentTarget.querySelectorAll('button:not(:disabled), input:not(:disabled)')];
               if (!buttons.length) { event.preventDefault(); return; }
@@ -587,12 +598,6 @@ function App() {
             <span className="eyebrow">falta pouco para adoçar seu dia</span>
             <h2 id="customer-auth-title">Seus doces estão te esperando</h2>
             <p>Entre para continuar seu pedido na Doce Maná. Sua sacola será preservada enquanto você se conecta.</p>
-            <form className="customer-fields customer-password-form" onSubmit={passwordLogin}>
-              <label>Email<input autoFocus name="email" type="email" autoComplete="username" maxLength={254} required disabled={loginBusy} /></label>
-              <label>Senha<input name="password" type="password" autoComplete="current-password" maxLength={1024} required disabled={loginBusy} /></label>
-              <button type="submit" className="button button-primary" disabled={loginBusy}>{loginBusy ? 'Entrando...' : 'Entrar com email e senha'}</button>
-            </form>
-            <div className="customer-auth-separator">ou faça login com o google</div>
             <button type="button" className="customer-google-button" disabled={loginBusy} onClick={loginCustomer}>
               <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true">
                 <path fill="#4285F4" d="M21.6 12.23c0-.71-.06-1.39-.18-2.05H12v3.88h5.38a4.6 4.6 0 0 1-2 3.02v2.51h3.24c1.9-1.75 2.98-4.33 2.98-7.36Z" />
@@ -603,8 +608,8 @@ function App() {
               {loginBusy ? 'Conectando...' : 'Continuar com Google'}
             </button>
             {checkoutError && <p className="checkout-error" role="alert">{checkoutError}</p>}
-            <small>Ao voltar, revise seu nome e telefone e confirme o pedido. Entrar não reserva estoque nem cria pedidos.</small>
-            <button type="button" className="button" disabled={loginBusy} onClick={() => setShowGoogleLogin(false)}>Voltar à sacola</button>
+            <small>Ao finalizar a compra, após entrar com Google, registraremos o pedido e abriremos o WhatsApp automaticamente.</small>
+            <button type="button" className="button" disabled={loginBusy} onClick={cancelAuthentication}>Voltar à sacola</button>
           </section>
         </div>
       )}

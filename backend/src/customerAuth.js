@@ -34,33 +34,18 @@ function client(req, res) {
   });
 }
 function google(user) {
-  return user && user.app_metadata?.provider === 'google' && user.identities?.some(identity => identity.provider === 'google');
+  return user && !user.is_anonymous && user.app_metadata?.provider === 'google' && Array.isArray(user.identities) && user.identities.some(identity => identity.provider === 'google');
 }
-function customer(user) {
-  return google(user) || (user && !user.is_anonymous && user.app_metadata?.provider === 'email' && user.identities?.some(identity => identity.provider === 'email'));
+function publicCustomer(user) {
+  const metadata = user.identities.find(identity => identity.provider === 'google')?.identity_data || user.user_metadata || {};
+  return { id: user.id, name: metadata.full_name || metadata.name || user.email, email: user.email };
 }
-exports.passwordLogin = async (req, res) => {
-  const message = 'Não foi possível entrar. Confira email e senha e tente novamente.';
-  const { email, password } = req.body || {};
-  if (typeof email !== 'string' || email.trim().length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()) || typeof password !== 'string' || !password.length || password.length > 1024) {
-    return res.status(400).json({ success: false, message });
-  }
-  try {
-    const auth = client(req, res).auth;
-    const { data, error } = await auth.signInWithPassword({ email: email.trim(), password });
-    if (error || !data?.session?.access_token) return res.status(401).json({ success: false, message });
-    const verified = await auth.getUser(data.session.access_token);
-    if (verified.error || !customer(verified.data?.user)) return res.status(401).json({ success: false, message });
-    const user = verified.data.user;
-    res.cookie(sessionCookie, data.session.access_token, { ...options, maxAge: Math.min(data.session.expires_in || 3600, 3600) * 1000 });
-    res.json({ success: true, customer: { id: user.id, name: user.user_metadata?.full_name || '', email: user.email } });
-  } catch { res.status(503).json({ success: false, message: 'Login indisponível no momento. Tente novamente mais tarde.' }); }
-};
+exports.publicCustomer = publicCustomer;
 async function identity(req, res) {
   const token = cookie(req, sessionCookie);
   if (!token) return null;
   const { data, error } = await client(req, res).auth.getUser(token);
-  return !error && customer(data.user) ? data.user : null;
+  return !error && google(data?.user) ? data.user : null;
 }
 exports.login = async (req, res) => {
   try {
@@ -77,13 +62,13 @@ exports.callback = async (req, res) => {
   try {
     const state = jwt.verify(cookie(req, `${prefix}doce_google_state`), secret, { algorithms: ['HS256'], issuer: 'doce-mana', audience: 'customer-state', maxAge: '10m' });
     const flow = jwt.verify(cookie(req, flowCookie), secret, { algorithms: ['HS256'], issuer: 'doce-mana', audience: 'customer-pkce', maxAge: '10m' });
-    if (typeof req.query.code !== 'string' || typeof flow.verifier !== 'string' || typeof req.query.state !== 'string' || req.query.state !== state.state) throw new Error();
+    if (typeof req.query.code !== 'string' || !req.query.code || req.query.code.length > 2048 || typeof flow.verifier !== 'string' || typeof req.query.state !== 'string' || req.query.state !== state.state) throw new Error();
     const auth = client(req, res).auth;
     const { data, error } = await auth.exchangeCodeForSession(req.query.code);
-    if (error || !data.session) throw new Error();
+    if (error || !data?.session?.access_token) throw new Error();
     const verified = await auth.getUser(data.session.access_token);
-    if (verified.error || !google(verified.data.user)) throw new Error();
-    res.cookie(sessionCookie, data.session.access_token, { ...options, maxAge: Math.min(data.session.expires_in, 3600) * 1000 });
+    if (verified.error || !google(verified.data?.user)) throw new Error();
+    res.cookie(sessionCookie, data.session.access_token, { ...options, maxAge: Math.min(data.session.expires_in || 3600, 3600) * 1000 });
     res.clearCookie(flowCookie, options);
     res.clearCookie(`${prefix}doce_google_state`, options);
     res.redirect('/?login=success');
@@ -96,13 +81,13 @@ exports.callback = async (req, res) => {
 exports.session = async (req, res) => {
   try {
     const user = await identity(req, res);
-    res.json({ success: true, customer: user ? { id: user.id, name: user.user_metadata?.full_name || '', email: user.email } : null });
+    res.json({ success: true, customer: user ? publicCustomer(user) : null });
   } catch { res.status(503).json({ success: false, message: 'Sessão indisponível' }); }
 };
 exports.requireCustomer = async (req, res, next) => {
   try {
     req.customer = await identity(req, res);
-    if (!req.customer) return res.status(401).json({ success: false, message: 'Faça login para finalizar o pedido' });
+    if (!req.customer) return res.status(401).json({ success: false, message: 'Faça login com Google para finalizar o pedido' });
     next();
   } catch { res.status(503).json({ success: false, message: 'Autenticação indisponível' }); }
 };

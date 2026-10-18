@@ -83,10 +83,6 @@ class ApiClient {
     return this.request('/customer/login', { method: 'POST' });
   }
 
-  async loginCustomerWithPassword(email, password) {
-    return this.request('/customer/password-login', { method: 'POST', body: JSON.stringify({ email, password }) });
-  }
-
   async logoutCustomer() {
     return this.request('/customer/logout', { method: 'POST' });
   }
