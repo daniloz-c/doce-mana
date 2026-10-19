@@ -333,7 +333,7 @@ useEffect(() => {
 
       <header className="site-header">
         <a className="brand" href="#inicio" aria-label="Doce Maná — início">
-          <span className="brand-mark">dm</span>
+          <img className="brand-mark" src="/logo.jpg" alt="Doce Maná" />
           <span className="brand-name">
             doce maná<span>.</span>
             <small>doces feitos com amor</small>
@@ -538,7 +538,7 @@ useEffect(() => {
 
       <footer className="site-footer">
         <a className="brand footer-brand" href="#inicio">
-          <span className="brand-mark">dm</span>
+          <img className="brand-mark" src="/logo.jpg" alt="Doce Maná" />
           <span className="brand-name">doce maná<span>.</span><small>doces feitos com amor</small></span>
         </a>
         <p>Feito com amor, adoçado com carinho. ♡</p>
@@ -656,7 +656,7 @@ useEffect(() => {
               if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
             }
           }}>
-            <span className="brand-mark">dm</span>
+            <img className="brand-mark" src="/logo.jpg" alt="Doce Maná" />
             <span className="eyebrow">falta pouco para adoçar seu dia</span>
             <h2 id="customer-auth-title">Seus doces estão te esperando</h2>
             <p>Entre para continuar seu pedido na Doce Maná. Sua sacola será preservada enquanto você se conecta.</p>

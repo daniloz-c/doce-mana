@@ -29,7 +29,6 @@
 .customer-fields input:disabled { background: var(--pink); }
 .customer-auth-separator { display: flex; align-items: center; gap: 12px; width: 100%; color: var(--muted); font-size: 12px; }
 .customer-auth-separator::before, .customer-auth-separator::after { content: ''; flex: 1; height: 1px; background: var(--line); }
-.customer-auth .brand-mark { background: var(--pink); color: var(--berry-dark); }
 .customer-auth h2 { margin: 0; font: 600 30px/1.2 var(--serif); color: var(--berry-dark); }
 .customer-auth p { margin: 0; line-height: 1.6; }
 .customer-auth small { color: var(--muted); line-height: 1.6; }
@@ -90,13 +89,9 @@ button:focus-visible, a:focus-visible { outline: 3px solid #d27d8d; outline-offs
 .brand-mark {
   width: 42px;
   height: 42px;
-  display: grid;
-  place-items: center;
-  border: 1px solid #d99aa1;
+  display: block;
   border-radius: 50%;
-  color: var(--berry);
-  font: italic 600 19px var(--serif);
-  letter-spacing: -.07em;
+  object-fit: cover;
 }
 .brand-name { font: 600 20px var(--serif); line-height: 1; letter-spacing: -.04em; }
 .brand-name > span { color: var(--berry); }
@@ -199,7 +194,7 @@ h1, h2, h3, p { margin-top: 0; }
 .love-note-stamp b { font: 18px var(--serif); }
 
 .site-footer { min-height: 95px; padding: 20px max(calc((100vw - 1080px) / 2), 6vw); display: flex; align-items: center; justify-content: space-between; border-top: 1px solid var(--line); }
-.footer-brand .brand-mark { width: 36px; height: 36px; font-size: 16px; }
+.footer-brand .brand-mark { width: 36px; height: 36px; }
 .footer-brand .brand-name { font-size: 17px; }
 .site-footer > p { margin: 0; color: #907a74; font: italic 12px var(--serif); }
 .site-footer > a:last-child { display: inline-flex; align-items: center; gap: 5px; color: #705a56; font-size: 10px; }
