@@ -387,6 +387,10 @@ useEffect(() => {
               <span className="proof-stars" aria-label="5 estrelas">★★★★★</span>
               <span>Um carinho em forma de doce</span>
             </div>
+            <div className="opening-hours" aria-label="Horário de funcionamento">
+              <span className="opening-hours-icon" aria-hidden="true">☼</span>
+              <p>Terça a sexta<small>das 12h às 19h</small></p>
+            </div>
           </div>
           <div className="hero-art" aria-label="Brownie recheado artesanal">
             <div className="hero-sticker">feito<br />com amor <span>♡</span></div>
