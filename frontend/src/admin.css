@@ -583,12 +583,6 @@ button.button-primary:disabled {
 .image-preview { display: flex; align-items: center; gap: 12px; margin-top: 6px; }
 .edit-product-button { background: #f3f4f6; border: 1px solid #d1d5db; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 13px; margin-top: 6px; width: 100%; }
 .edit-product-button:hover { background: #e5e7eb; }
-.customer-logged-box { background: #f0fdf4; border: 1px solid #bbf7d0; padding: 10px; border-radius: 6px; margin-bottom: 12px; font-size: 13px; }
-.customer-logged-box p { margin: 0 0 6px 0; }
-.customer-login-warning { background: #fffbeb; border: 1px solid #fef3c7; padding: 12px; border-radius: 6px; margin-bottom: 12px; font-size: 13px; }
-.customer-login-warning p { margin: 0 0 8px 0; }
-.button-google { background: #4285f4; color: white; border: none; padding: 10px 16px; border-radius: 4px; font-weight: 600; cursor: pointer; width: 100%; display: flex; justify-content: center; align-items: center; }
-.button-google:hover { background: #3367d6; }
 .button-text { background: transparent; border: none; color: #dc2626; text-decoration: underline; cursor: pointer; padding: 0; font-size: 12px; }
 
 @media (max-width: 520px) {

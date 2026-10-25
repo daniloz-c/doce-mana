@@ -75,18 +75,6 @@ class ApiClient {
     });
   }
 
-  async getCustomerSession() {
-    return this.request('/customer/session');
-  }
-
-  async loginCustomer() {
-    return this.request('/customer/login', { method: 'POST' });
-  }
-
-  async logoutCustomer() {
-    return this.request('/customer/logout', { method: 'POST' });
-  }
-
   async uploadProductImage(file) {
     const formData = new FormData();
     formData.append('image', file);
